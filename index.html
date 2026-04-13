@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MOOD Agency</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <!-- Intro Screen – Light Switch Entrance -->
+  <section id="intro-screen">
+    <div class="intro-bg"></div>
+    <img id="switch-img" class="switch-img" src="assets/off.png" alt="Light Switch" draggable="false" />
+  </section>
+
+  <!-- SVG Portal Clip Definition (rect with elliptical O-hole, updated by scroll.js) -->
+  <svg width="0" height="0" style="position:absolute;">
+    <defs>
+      <clipPath id="hero-clip">
+        <path id="hero-clip-path" fill-rule="evenodd" d="M0,0 L0,0 L0,0 L0,0Z"/>
+      </clipPath>
+    </defs>
+  </svg>
+
+  <!-- Hero Section -->
+  <section id="hero">
+    <div class="hero-bg"></div>
+    <div class="hero-lighting">
+      <div class="hero-dim"></div>
+      <div class="spotlight-wrap">
+        <div class="spotlight-source"></div>
+        <div class="spotlight-beam"></div>
+        <div class="spotlight-haze"></div>
+      </div>
+    </div>
+    <div class="hero-grain"></div>
+
+    <!-- Centered logo with isolated first O as portal -->
+    <div id="logo-wrap">
+      <div id="logo-stage">
+        <img id="hero-logo" src="assets/moodlogo.svg" alt="MOOD Agency" draggable="false" />
+        <!-- Isolated first O — portal frame, clip source, and click target -->
+        <div id="o-portal" role="button" tabindex="0" aria-label="Enter tunnel">
+          <svg viewBox="0 0 331 325" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M165.278 325C142.361 325 120.949 320.833 101.042 312.5C81.1343 303.935 63.5417 292.245 48.2639 277.431C33.2176 262.616 21.412 245.37 12.8472 225.694C4.28241 206.019 0 184.954 0 162.5C0 140.046 4.28241 118.981 12.8472 99.3055C21.412 79.6296 33.2176 62.3843 48.2639 47.5694C63.5417 32.7546 81.1343 21.1805 101.042 12.8472C120.949 4.28241 142.361 0 165.278 0C188.194 0 209.606 4.28241 229.514 12.8472C249.421 21.1805 266.898 32.7546 281.944 47.5694C297.222 62.3843 309.144 79.6296 317.708 99.3055C326.273 118.981 330.556 140.046 330.556 162.5C330.556 184.954 326.273 206.019 317.708 225.694C309.144 245.37 297.222 262.616 281.944 277.431C266.898 292.245 249.421 303.935 229.514 312.5C209.606 320.833 188.194 325 165.278 325ZM165.278 264.583C184.028 264.583 200.926 260.069 215.972 251.042C231.019 241.782 242.94 229.398 251.736 213.889C260.764 198.38 265.278 181.25 265.278 162.5C265.278 143.519 260.764 126.389 251.736 111.111C242.94 95.6019 231.019 83.3333 215.972 74.3056C200.926 65.0463 184.028 60.4167 165.278 60.4167C146.528 60.4167 129.514 65.0463 114.236 74.3056C99.1898 83.3333 87.2685 95.6019 78.4722 111.111C69.6759 126.389 65.2778 143.519 65.2778 162.5C65.2778 181.25 69.6759 198.38 78.4722 213.889C87.2685 229.398 99.1898 241.782 114.236 251.042C129.514 260.069 146.528 264.583 165.278 264.583Z" fill="#404041"/>
+          </svg>
+          <div class="o-ring"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Glow overlay for switch effect -->
+    <div class="hero-glow"></div>
+  </section>
+
+  <!-- Tunnel Canvas -->
+  <div id="tunnel-container">
+    <canvas id="tunnel-canvas"></canvas>
+  </div>
+
+  <!-- Scroll spacer for ScrollTrigger -->
+  <div id="scroll-spacer"></div>
+
+  <!-- Scripts -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+  <script src="js/intro.js"></script>
+  <script src="js/switch.js"></script>
+  <script src="js/tunnel.js"></script>
+  <script src="js/scroll.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

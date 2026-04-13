@@ -1,0 +1,406 @@
+/* 
+   MOOD Agency – Landing Page Styles
+    */
+
+/* Reset & Base */
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: auto;
+  overflow-x: hidden;
+}
+
+body {
+  font-family: 'Helvetica Neue', Arial, sans-serif;
+  background: #e8e4df;
+  color: #2d2d2d;
+  overflow-x: hidden;
+}
+
+/* 
+   Intro Screen – Light Switch Entrance
+    */
+#intro-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.intro-bg {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  z-index: 0;
+}
+
+.switch-img {
+  position: relative;
+  z-index: 2;
+  height: 260px;
+  cursor: pointer;
+  user-select: none;
+  transition: filter 0.3s ease;
+  filter: drop-shadow(0 8px 30px rgba(232, 224, 32, 0.15));
+}
+
+.switch-img:hover {
+  filter: drop-shadow(0 8px 50px rgba(232, 224, 32, 0.35));
+}
+
+/* 
+   Hero Section
+    */
+#hero {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  clip-path: url(#hero-clip);
+  -webkit-clip-path: url(#hero-clip);
+  will-change: clip-path;
+}
+
+.hero-bg {
+  position: absolute;
+  inset: 0;
+  background: url('../assets/background.png') center center / cover no-repeat;
+  z-index: 0;
+  will-change: transform, opacity;
+}
+
+.hero-lighting {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  pointer-events: none;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.hero-lighting::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 6%;
+  width: min(76vw, 1060px);
+  height: 32vh;
+  transform: translateX(-50%);
+  background:
+    radial-gradient(ellipse at 50% 58%, rgba(255, 255, 255, 0.34) 0%, rgba(255, 249, 238, 0.18) 26%, rgba(255, 245, 230, 0.07) 52%, rgba(255, 245, 230, 0) 76%);
+  filter: blur(34px);
+  mix-blend-mode: screen;
+  opacity: 0.82;
+}
+
+.hero-lighting::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 50% 74%, rgba(255, 248, 236, 0.11) 0%, rgba(255, 244, 228, 0.045) 12%, rgba(255, 244, 228, 0) 28%);
+  filter: blur(20px);
+  mix-blend-mode: screen;
+  opacity: 0.54;
+}
+
+.hero-dim {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 50% 22%, rgba(10, 10, 10, 0) 0%, rgba(10, 10, 10, 0.02) 18%, rgba(10, 10, 10, 0.12) 40%, rgba(10, 10, 10, 0.28) 68%, rgba(10, 10, 10, 0.42) 100%),
+    linear-gradient(90deg, rgba(12, 12, 12, 0.38) 0%, rgba(12, 12, 12, 0.16) 16%, rgba(12, 12, 12, 0) 36%, rgba(12, 12, 12, 0) 64%, rgba(12, 12, 12, 0.16) 84%, rgba(12, 12, 12, 0.38) 100%),
+    linear-gradient(180deg, rgba(14, 14, 14, 0.24) 0%, rgba(14, 14, 14, 0.08) 36%, rgba(14, 14, 14, 0.22) 100%);
+}
+
+.spotlight-wrap {
+  position: absolute;
+  top: -15vh;
+  left: 50%;
+  width: min(84vw, 1180px);
+  height: 92vh;
+  transform: translateX(-50%) rotate(-5deg);
+  transform-origin: 50% 0%;
+  animation: heroSpotlightSwing 6.2s ease-in-out infinite;
+  will-change: transform;
+}
+
+.spotlight-source {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 132px;
+  height: 164px;
+  transform: translate(-50%, -24%);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 28%, rgba(255, 255, 255, 1) 0%, rgba(255, 254, 248, 0.95) 14%, rgba(255, 248, 234, 0.48) 38%, rgba(255, 245, 223, 0.08) 66%, rgba(255, 245, 223, 0) 82%);
+  filter: blur(18px);
+  box-shadow:
+    0 0 44px rgba(255, 252, 242, 0.58),
+    0 0 120px rgba(255, 248, 228, 0.18);
+  mix-blend-mode: screen;
+}
+
+.spotlight-source::before {
+  content: '';
+  position: absolute;
+  inset: 12% 18% 28%;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, 1) 0%, rgba(255, 252, 242, 0.82) 34%, rgba(255, 248, 232, 0.12) 58%, rgba(255, 248, 232, 0) 78%);
+  filter: blur(10px);
+}
+
+.spotlight-source::after {
+  content: '';
+  position: absolute;
+  inset: -20%;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, rgba(255, 250, 236, 0.12) 0%, rgba(255, 248, 228, 0.06) 32%, rgba(255, 248, 228, 0.015) 52%, rgba(255, 248, 228, 0) 76%);
+  filter: blur(28px);
+}
+
+.spotlight-beam {
+  position: absolute;
+  top: 64px;
+  left: 50%;
+  width: 100%;
+  height: calc(100% - 64px);
+  transform: translateX(-50%);
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(255, 255, 250, 0.32) 0%, rgba(255, 252, 244, 0.2) 10%, rgba(255, 248, 235, 0.11) 22%, rgba(255, 248, 235, 0.05) 40%, rgba(255, 248, 235, 0.018) 58%, rgba(255, 248, 235, 0) 80%);
+  clip-path: polygon(49.3% 0%, 50.7% 0%, 86% 100%, 14% 100%);
+  filter: blur(26px);
+  opacity: 1;
+  mix-blend-mode: screen;
+}
+
+.spotlight-beam::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 50% 2%, rgba(255, 255, 250, 0.3) 0%, rgba(255, 252, 242, 0.19) 16%, rgba(255, 248, 235, 0.08) 30%, rgba(255, 248, 235, 0.03) 48%, rgba(255, 248, 235, 0) 74%),
+    linear-gradient(180deg, rgba(255, 255, 250, 0.2) 0%, rgba(255, 250, 238, 0.14) 18%, rgba(255, 248, 235, 0.08) 38%, rgba(255, 248, 235, 0.026) 62%, rgba(255, 248, 235, 0) 100%);
+  clip-path: polygon(49.45% 0%, 50.55% 0%, 76% 100%, 24% 100%);
+  filter: blur(18px);
+  opacity: 0.98;
+}
+
+.spotlight-beam::after {
+  content: '';
+  position: absolute;
+  inset: 6% -8% 2%;
+  background:
+    radial-gradient(ellipse at 50% 8%, rgba(255, 255, 245, 0.18) 0%, rgba(255, 248, 235, 0.09) 18%, rgba(255, 248, 235, 0.035) 42%, rgba(255, 248, 235, 0) 74%);
+  clip-path: polygon(47.7% 0%, 52.3% 0%, 94% 100%, 6% 100%);
+  filter: blur(34px);
+  opacity: 0.9;
+}
+
+.spotlight-haze {
+  position: absolute;
+  inset: 8% 6% 6%;
+  background:
+    radial-gradient(ellipse at 50% 8%, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.04) 14%, rgba(255, 255, 255, 0.018) 30%, rgba(255, 255, 255, 0) 56%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.042) 0%, rgba(255, 255, 255, 0.02) 18%, rgba(255, 255, 255, 0.01) 42%, rgba(255, 255, 255, 0) 72%),
+    repeating-linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.018) 0px,
+      rgba(255, 255, 255, 0.018) 1px,
+      rgba(255, 255, 255, 0) 10px,
+      rgba(255, 255, 255, 0) 20px
+    );
+  clip-path: polygon(49.25% 0%, 50.75% 0%, 84% 100%, 16% 100%);
+  filter: blur(28px);
+  opacity: 0.76;
+  mix-blend-mode: screen;
+}
+
+.spotlight-haze::before {
+  content: '';
+  position: absolute;
+  inset: 2% 6% 14%;
+  background:
+    radial-gradient(ellipse at 50% 12%, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.024) 18%, rgba(255, 255, 255, 0) 40%);
+  clip-path: polygon(49.3% 0%, 50.7% 0%, 74% 100%, 26% 100%);
+  filter: blur(34px);
+  opacity: 0.82;
+}
+
+.spotlight-haze::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 50% 70%, rgba(255, 248, 232, 0.13) 0%, rgba(255, 248, 232, 0.06) 18%, rgba(255, 248, 232, 0) 40%);
+  filter: blur(34px);
+  mix-blend-mode: screen;
+  opacity: 0.76;
+}
+
+.hero-grain {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-size: 128px 128px;
+}
+
+.hero-glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 600px;
+  height: 600px;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle, rgba(255,248,235,0.5) 0%, transparent 60%);
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+
+.hero-glow.active {
+  opacity: 1;
+}
+
+@keyframes heroSpotlightSwing {
+  0% {
+    transform: translateX(-50%) rotate(-11deg);
+  }
+  50% {
+    transform: translateX(-50%) rotate(10deg);
+  }
+  100% {
+    transform: translateX(-50%) rotate(-11deg);
+  }
+}
+
+/* Logo wrapper — centered, relative for hotspot positioning */
+#logo-wrap {
+  --logo-base-nudge-x: 0px;
+  --logo-base-nudge-y: 0px;
+  --logo-nudge-x: 0px;
+  --logo-nudge-y: 0px;
+  --portal-left: 34%;
+  --portal-top: 17%;
+  --portal-width: 18.5%;
+  position: relative;
+  z-index: 5;
+  width: 52vw;
+  min-width: 420px;
+  max-width: 920px;
+  user-select: none;
+  pointer-events: none;
+}
+
+#logo-stage {
+  position: relative;
+  will-change: transform, opacity;
+  transform-origin: center center;
+  transform: translate(
+    calc(var(--logo-base-nudge-x) + var(--logo-nudge-x)),
+    calc(var(--logo-base-nudge-y) + var(--logo-nudge-y))
+  );
+  pointer-events: none;
+}
+
+#hero-logo {
+  display: block;
+  width: 100%;
+  height: auto;
+  pointer-events: none;
+}
+
+/* Isolated first O — portal frame positioned over the first O in logo */
+#o-portal {
+  position: absolute;
+  left: var(--portal-left);
+  top: var(--portal-top);
+  width: var(--portal-width);
+  aspect-ratio: 331 / 325;
+  cursor: pointer;
+  z-index: 6;
+  will-change: opacity;
+  pointer-events: auto;
+}
+
+#o-portal svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+#o-portal .o-ring {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+}
+
+#o-portal:hover .o-ring {
+  border-color: rgba(255, 220, 180, 0.5);
+  box-shadow: 0 0 24px rgba(255, 220, 150, 0.25);
+  transform: scale(1.15);
+}
+
+#o-portal:active .o-ring {
+  transform: scale(0.95);
+}
+
+/* 
+   Tunnel Container
+    */
+#tunnel-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 5;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+#tunnel-container.active {
+  pointer-events: auto;
+}
+
+#tunnel-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* 
+   Scroll Spacer
+    */
+#scroll-spacer {
+  height: 800vh;
+  position: relative;
+  z-index: 0;
+}
