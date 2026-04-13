@@ -42,7 +42,7 @@ const TunnelScene = (() => {
     width: TUNNEL_R * 1.95,
     centerZ: -20,
   };
-  const END_ZONE_Z = -52;
+  const END_ZONE_Z = -58;
 
   const END_LOGO_URL = 'assets/moodlogo copy.svg';
   const END_LOGO_LINK = 'https://mood.mt/services/';
