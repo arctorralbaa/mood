@@ -16,7 +16,7 @@ html {
 
 body {
   font-family: 'Helvetica Neue', Arial, sans-serif;
-  background: #e8e4df;
+  background: #e5d8c8;
   color: #2d2d2d;
   overflow-x: hidden;
 }
@@ -82,7 +82,7 @@ body {
 .hero-bg {
   position: absolute;
   inset: 0;
-  background: url('../assets/background.png') center center / cover no-repeat;
+  background: url('../assets/background.webp') center center / cover no-repeat;
   z-index: 0;
   will-change: transform, opacity;
 }

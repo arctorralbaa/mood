@@ -14,20 +14,19 @@ const TunnelScene = (() => {
 
   const CAM_Z0 = 6.6;
   const CAM_Y = 1.92;
-  const MAX_TRAVEL = 74.5;
-  const ENTRY_LOCK_PROGRESS = 0.24;
+  const MAX_TRAVEL = 49;
+  const ENTRY_LOCK_PROGRESS = 0;
   const ENTRY_FOV = 66;
   const CRUISE_FOV = 53;
-  const ENTRY_CAMERA_Y = 1.56;
+   const ENTRY_CAMERA_Y = 1.56;
   const ENTRY_LOOK_Y = 1.92;
-  const CAMERA_ENTRY = {
-    start: 0.24,
-    timing: 0.56,
-    strength: 0.42,
-    response: 0.075,
+  const CAMERA_RESPONSE = 0.95;  // near-instant — stays in sync with scrubbed DOM
+  const CAMERA_TRAVEL = {
+    entryStart: 0,
+    entryEnd: 1,
   };
-  const CARD_START_Z = -5.6;
-  const CARD_GAP = 3.8;
+  const CARD_START_Z = 4.0;
+  const CARD_GAP = 2.8;
 
   const CARD = {
     w: 2.6,
@@ -39,23 +38,24 @@ const TunnelScene = (() => {
   };
 
   const FLOOR = {
-    length: 42,
+    length: 50,
     width: TUNNEL_R * 1.95,
-    centerZ: -12,
+    centerZ: -20,
   };
+  const END_ZONE_Z = -52;
 
   const END_LOGO_URL = 'assets/moodlogo copy.svg';
   const END_LOGO_LINK = 'https://mood.mt/services/';
 
   const projects = [
     { title: 'Brand Identity',   z: CARD_START_Z + (CARD_GAP * -1), side: 'left',  accent: 0xffaa66, img: 'assets/coffeefellows.jpg' },
-    { title: 'Brand Identity',   z: CARD_START_Z + (CARD_GAP * -1), side: 'right', accent: 0xff5566, img: 'assets/coffeefellows.jpg' },
-    { title: 'Website Design',   z: CARD_START_Z + (CARD_GAP * -2), side: 'left',  accent: 0xffaa66, img: 'assets/coffeefellows.jpg' },
-    { title: 'Website Design',   z: CARD_START_Z + (CARD_GAP * -2), side: 'right', accent: 0xff5566, img: 'assets/coffeefellows.jpg' },
-    { title: 'Digital Strategy', z: CARD_START_Z + (CARD_GAP * -3), side: 'left',  accent: 0xffaa66, img: 'assets/coffeefellows.jpg' },
-    { title: 'Digital Strategy', z: CARD_START_Z + (CARD_GAP * -3), side: 'right', accent: 0xff5566, img: 'assets/coffeefellows.jpg' },
-    { title: 'Photography',      z: CARD_START_Z + (CARD_GAP * -4), side: 'left',  accent: 0xffaa66, img: 'assets/coffeefellows.jpg' },
-    { title: 'Photography',      z: CARD_START_Z + (CARD_GAP * -4), side: 'right', accent: 0xff5566, img: 'assets/coffeefellows.jpg' },
+    { title: 'Brand Identity',   z: CARD_START_Z + (CARD_GAP * -3), side: 'right', accent: 0xff5566, img: 'assets/coffeefellows.jpg' },
+    { title: 'Website Design',   z: CARD_START_Z + (CARD_GAP * -5), side: 'left',  accent: 0xffaa66, img: 'assets/coffeefellows.jpg' },
+    { title: 'Website Design',   z: CARD_START_Z + (CARD_GAP * -7), side: 'right', accent: 0xff5566, img: 'assets/coffeefellows.jpg' },
+    { title: 'Digital Strategy', z: CARD_START_Z + (CARD_GAP * -9), side: 'left',  accent: 0xffaa66, img: 'assets/coffeefellows.jpg' },
+    { title: 'Digital Strategy', z: CARD_START_Z + (CARD_GAP * -11), side: 'right', accent: 0xff5566, img: 'assets/coffeefellows.jpg' },
+    { title: 'Photography',      z: CARD_START_Z + (CARD_GAP * -14), side: 'left',  accent: 0xffaa66, img: 'assets/coffeefellows.jpg' },
+    { title: 'Photography',      z: CARD_START_Z + (CARD_GAP * -16), side: 'right', accent: 0xff5566, img: 'assets/coffeefellows.jpg' },
   ];
 
   const cardMeshes = [];
@@ -67,6 +67,7 @@ const TunnelScene = (() => {
   let sharedShadowTexture = null;
   let sharedGlowTexture = null;
   let sharedFloorTexture = null;
+  let sharedFloorReflectionTexture = null;
 
   const reusablePanels = [];
 
@@ -83,9 +84,9 @@ const TunnelScene = (() => {
     return -(Math.cos(Math.PI * p) - 1) / 2;
   }
 
-  function easeOutCubic(value) {
-    const p = clamp01(value);
-    return 1 - ((1 - p) ** 3);
+  function rangeProgress(value, start, end) {
+    if (end <= start) return value >= end ? 1 : 0;
+    return clamp01((value - start) / (end - start));
   }
 
   function init() {
@@ -106,7 +107,8 @@ const TunnelScene = (() => {
 
     sharedShadowTexture = createShadowTexture();
     sharedGlowTexture = createGlowTexture();
-    sharedFloorTexture = createFloorTexture(512);
+    sharedFloorTexture = createConcreteTexture(512);
+    sharedFloorReflectionTexture = createFloorReflectionTexture(512);
 
     addLights();
     addArches();
@@ -212,13 +214,70 @@ const TunnelScene = (() => {
     return texture;
   }
 
+  function createConcreteTexture(size = 512) {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size;
+    const ctx = canvas.getContext('2d');
+
+    const base = ctx.createLinearGradient(0, 0, 0, size);
+    base.addColorStop(0, '#e8ded1');
+    base.addColorStop(0.5, '#e3d8ca');
+    base.addColorStop(1, '#dacfbe');
+    ctx.fillStyle = base;
+    ctx.fillRect(0, 0, size, size);
+
+    const imgData = ctx.getImageData(0, 0, size, size);
+    const data = imgData.data;
+    for (let i = 0; i < data.length; i += 4) {
+      const grain = (Math.random() - 0.5) * 6;
+      data[i] = clamp255(data[i] + grain);
+      data[i + 1] = clamp255(data[i + 1] + grain - 1);
+      data[i + 2] = clamp255(data[i + 2] + grain - 2);
+    }
+    ctx.putImageData(imgData, 0, 0);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(1.3, 1.7);
+    return texture;
+  }
+
+  function createFloorReflectionTexture(size = 512) {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size;
+    const ctx = canvas.getContext('2d');
+
+    const glow = ctx.createRadialGradient(
+      size * 0.5,
+      size * 0.28,
+      0,
+      size * 0.5,
+      size * 0.28,
+      size * 0.45
+    );
+    glow.addColorStop(0, 'rgba(255,255,245,0.32)');
+    glow.addColorStop(0.55, 'rgba(255,250,236,0.14)');
+    glow.addColorStop(1, 'rgba(255,250,236,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, size, size);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = texture.wrapT = THREE.ClampToEdgeWrapping;
+    return texture;
+  }
+
   function addArches() {
     const group = new THREE.Group();
+    const floorFront = FLOOR.centerZ + FLOOR.length / 2;
+    const floorBack = FLOOR.centerZ - FLOOR.length / 2;
+
+    group.add(makeArch(floorFront));
+    group.add(makeArch(7.8));
     group.add(makeArch(4.2));
 
     for (let i = 0; i < ARCH_N; i += 1) {
       const z = -i * ARCH_GAP;
-      if (z < -35) break;
+      if (z < floorBack) break;
       group.add(makeArch(z));
     }
 
@@ -228,9 +287,10 @@ const TunnelScene = (() => {
   function makeArch(z) {
     const geo = new THREE.TorusGeometry(TUNNEL_R, 0.07, 16, 120);
     const mat = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(1.22, 1.13, 1.02),
-      transparent: true,
-      opacity: 0.92,
+      color: 0xffffff,
+      transparent: false,
+      opacity: 1,
+      toneMapped: false,
     });
 
     const ring = new THREE.Mesh(geo, mat);
@@ -247,23 +307,23 @@ const TunnelScene = (() => {
     const ctx = canvas.getContext('2d');
 
     const base = ctx.createLinearGradient(0, 0, 0, size);
-    base.addColorStop(0, '#cfbea8');
-    base.addColorStop(0.48, '#c5b198');
-    base.addColorStop(1, '#b99f83');
+    base.addColorStop(0, '#f2ece5');
+    base.addColorStop(0.48, '#ede6dd');
+    base.addColorStop(1, '#e8dfd5');
     ctx.fillStyle = base;
     ctx.fillRect(0, 0, size, size);
 
     const tonalWash = ctx.createLinearGradient(0, 0, size, size);
-    tonalWash.addColorStop(0, 'rgba(236,226,214,0.08)');
-    tonalWash.addColorStop(0.45, 'rgba(208,190,169,0.04)');
-    tonalWash.addColorStop(1, 'rgba(166,145,120,0.08)');
+    tonalWash.addColorStop(0, 'rgba(238,232,224,0.05)');
+    tonalWash.addColorStop(0.45, 'rgba(228,220,210,0.03)');
+    tonalWash.addColorStop(1, 'rgba(218,210,200,0.05)');
     ctx.fillStyle = tonalWash;
     ctx.fillRect(0, 0, size, size);
 
     const galleryGlow = ctx.createLinearGradient(0, 0, 0, size);
-    galleryGlow.addColorStop(0, 'rgba(255,246,235,0.01)');
-    galleryGlow.addColorStop(0.62, 'rgba(246,232,212,0.02)');
-    galleryGlow.addColorStop(1, 'rgba(227,206,179,0.08)');
+    galleryGlow.addColorStop(0, 'rgba(250,246,240,0.01)');
+    galleryGlow.addColorStop(0.62, 'rgba(240,234,226,0.02)');
+    galleryGlow.addColorStop(1, 'rgba(230,222,212,0.04)');
     ctx.fillStyle = galleryGlow;
     ctx.fillRect(0, 0, size, size);
 
@@ -271,26 +331,26 @@ const TunnelScene = (() => {
     const data = imgData.data;
 
     for (let i = 0; i < data.length; i += 4) {
-      const grain = (Math.random() - 0.5) * 4.5;
-      const tonalVariation = Math.sin((i / 4) * 0.00024) * 1.1;
+      const grain = (Math.random() - 0.5) * 3;
+      const tonalVariation = Math.sin((i / 4) * 0.00024) * 0.5;
 
-      data[i] = clamp255(data[i] + grain + tonalVariation + 0.5);
-      data[i + 1] = clamp255(data[i + 1] + grain + tonalVariation - 0.4);
-      data[i + 2] = clamp255(data[i + 2] + grain - 1.8);
+      data[i] = clamp255(data[i] + grain + tonalVariation);
+      data[i + 1] = clamp255(data[i + 1] + grain + tonalVariation);
+      data[i + 2] = clamp255(data[i + 2] + grain + tonalVariation);
     }
 
     ctx.putImageData(imgData, 0, 0);
 
-    ctx.globalAlpha = 0.05;
-    for (let i = 0; i < 10; i += 1) {
+    ctx.globalAlpha = 0.04;
+    for (let i = 0; i < 14; i += 1) {
       const x = Math.random() * size;
       const y = Math.random() * size;
-      const r = 120 + Math.random() * 170;
+      const r = 80 + Math.random() * 200;
 
       const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
-      grad.addColorStop(0, 'rgba(219,204,187,0.08)');
-      grad.addColorStop(0.45, 'rgba(170,149,127,0.06)');
-      grad.addColorStop(1, 'rgba(255,255,255,0)');
+      grad.addColorStop(0, 'rgba(220,215,208,0.05)');
+      grad.addColorStop(0.45, 'rgba(210,204,196,0.03)');
+      grad.addColorStop(1, 'rgba(230,226,220,0)');
       ctx.fillStyle = grad;
       ctx.beginPath();
       ctx.arc(x, y, r, 0, Math.PI * 2);
@@ -298,24 +358,24 @@ const TunnelScene = (() => {
     }
 
     ctx.globalAlpha = 1;
-    for (let i = 0; i < 1100; i += 1) {
+    for (let i = 0; i < 1800; i += 1) {
       const x = Math.random() * size;
       const y = Math.random() * size;
-      const w = 0.45 + Math.random() * 1.1;
-      const h = 0.45 + Math.random() * 1.1;
+      const w = 0.3 + Math.random() * 0.8;
+      const h = 0.3 + Math.random() * 0.8;
 
-      ctx.fillStyle = Math.random() > 0.78
-        ? 'rgba(132,114,94,0.07)'
-        : Math.random() > 0.42
-          ? 'rgba(239,231,221,0.045)'
-          : 'rgba(177,156,133,0.035)';
+      ctx.fillStyle = Math.random() > 0.7
+        ? 'rgba(200,194,186,0.04)'
+        : Math.random() > 0.4
+          ? 'rgba(230,224,216,0.03)'
+          : 'rgba(215,208,200,0.025)';
       ctx.fillRect(x, y, w, h);
     }
 
     const reflection = ctx.createLinearGradient(size * 0.12, 0, size * 0.88, size);
-    reflection.addColorStop(0, 'rgba(255,248,240,0)');
-    reflection.addColorStop(0.5, 'rgba(235,221,202,0.035)');
-    reflection.addColorStop(1, 'rgba(255,248,240,0)');
+    reflection.addColorStop(0, 'rgba(230,226,220,0)');
+    reflection.addColorStop(0.5, 'rgba(210,206,200,0.025)');
+    reflection.addColorStop(1, 'rgba(230,226,220,0)');
     ctx.globalAlpha = 1;
     ctx.fillStyle = reflection;
     ctx.fillRect(0, 0, size, size);
@@ -331,11 +391,14 @@ const TunnelScene = (() => {
   }
 
   function addFloor() {
-    const mat = new THREE.MeshStandardMaterial({
+    const mat = new THREE.MeshPhysicalMaterial({
       map: sharedFloorTexture,
-      color: 0xc5ae92,
-      roughness: 0.74,
-      metalness: 0,
+      color: 0xffffff,
+      roughness: 0.65,
+      metalness: 0.0,
+      clearcoat: 0.12,
+      clearcoatRoughness: 0.4,
+      side: THREE.DoubleSide,
     });
 
     const floor = new THREE.Mesh(
@@ -345,6 +408,21 @@ const TunnelScene = (() => {
     floor.rotation.x = -Math.PI / 2;
     floor.position.set(0, 0, FLOOR.centerZ);
     scene.add(floor);
+
+    const reflection = new THREE.Mesh(
+      new THREE.PlaneGeometry(FLOOR.width, FLOOR.length),
+      new THREE.MeshBasicMaterial({
+        map: sharedFloorReflectionTexture,
+        transparent: true,
+        opacity: 0.15,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        toneMapped: false,
+      })
+    );
+    reflection.rotation.x = -Math.PI / 2;
+    reflection.position.set(0, 0.012, FLOOR.centerZ);
+    scene.add(reflection);
   }
 
   function addCards() {
@@ -637,34 +715,35 @@ const TunnelScene = (() => {
         new THREE.PlaneGeometry(width, height),
         new THREE.MeshBasicMaterial({
           map: tex,
-          color: 0x6f6052,
+          color: 0x43362b,
           transparent: true,
+          alphaTest: 0.02,
           opacity: 1,
           side: THREE.DoubleSide,
           depthWrite: false,
         })
       );
 
-      endLogo.position.set(0, 2.0, -50);
+      endLogo.position.set(0, 1.12, END_ZONE_Z);
       endLogo.visible = true;
       scene.add(endLogo);
     });
   }
 
   function addEndLight() {
-    scene.add(createPointLight(0xffd6b0, 1.45, 80, [0, 2.35, -48]));
-    scene.add(createPointLight(0xffead1, 0.78, 48, [0, 1.45, -51.5]));
+    scene.add(createPointLight(0xffd6b0, 1.45, 80, [0, 2.35, END_ZONE_Z + 2]));
+    scene.add(createPointLight(0xffead1, 0.78, 48, [0, 1.45, END_ZONE_Z - 1.5]));
 
     const accent = new THREE.SpotLight(0xffd7ae, 0.95, 72, Math.PI / 8, 0.62, 1.3);
-    accent.position.set(0, 3.1, -45.5);
-    accent.target.position.set(0, 1.2, -50.5);
+    accent.position.set(0, 3.1, END_ZONE_Z + 4.5);
+    accent.target.position.set(0, 1.2, END_ZONE_Z - 0.5);
     scene.add(accent);
     scene.add(accent.target);
   }
 
   function onLogoClick(event) {
     if (isLogoHit(event)) {
-      window.open(END_LOGO_LINK, '_blank');
+      window.location.href = END_LOGO_LINK;
     }
   }
 
@@ -709,17 +788,12 @@ const TunnelScene = (() => {
     requestAnimationFrame(animate);
 
     time += 0.004;
-    currentProgress = lerp(currentProgress, scrollProgress, CAMERA_ENTRY.response);
-
-    // Blend an early entry travel pass with the long cruise pass for a readable portal crossing.
-    const entrySpan = Math.max(0.001, CAMERA_ENTRY.timing - CAMERA_ENTRY.start);
-    const entryPhase = easeInOutSine(clamp01((currentProgress - CAMERA_ENTRY.start) / entrySpan));
-    const cruisePhase = easeInOutSine(clamp01((currentProgress - CAMERA_ENTRY.timing) / (1 - CAMERA_ENTRY.timing)));
-    const travelProgress = clamp01(
-      (entryPhase * CAMERA_ENTRY.strength) + (cruisePhase * (1 - CAMERA_ENTRY.strength))
-    );
+    const resp = scrollProgress < currentProgress ? 0.98 : CAMERA_RESPONSE; // near-instant reverse
+    currentProgress = lerp(currentProgress, scrollProgress, resp);
+    const entryProgress = rangeProgress(currentProgress, CAMERA_TRAVEL.entryStart, CAMERA_TRAVEL.entryEnd);
+    const travelProgress = easeInOutSine(entryProgress);
     const cameraZ = CAM_Z0 - travelProgress * MAX_TRAVEL;
-    const lookAhead = lerp(16.8, 20, travelProgress);
+    const lookAhead = lerp(17.6, 20, travelProgress);
     const verticalBlend = clamp01((currentProgress - ENTRY_LOCK_PROGRESS) / (1 - ENTRY_LOCK_PROGRESS));
     const lookY = lerp(ENTRY_LOOK_Y, CAM_Y + 0.3, verticalBlend);
     const fovBlend = clamp01((currentProgress - ENTRY_LOCK_PROGRESS) / (1 - ENTRY_LOCK_PROGRESS));
@@ -744,12 +818,11 @@ const TunnelScene = (() => {
     });
 
     if (endLogo) {
-      endLogo.position.y = 2.0 + Math.sin(time * 1.5) * 0.08;
-      const pulse = (Math.sin(time * 1.05) + 1) * 0.5;
+      endLogo.position.y = 1.12 + Math.sin(time * 2.8) * 0.06;
+      const pulse = (Math.sin(time * 2.6) + 1) * 0.5;
       const breathe = lerp(0.92, 1.16, pulse);
       endLogo.scale.set(breathe, breathe, 1);
-      const logoReveal = Math.max(0, Math.min(1, (travelProgress - 0.62) / 0.2));
-      endLogo.material.opacity = lerp(0.36, 1, logoReveal);
+      endLogo.material.opacity = 1;
       endLogo.visible = true;
     }
 

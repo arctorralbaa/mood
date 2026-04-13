@@ -20,7 +20,7 @@ const IntroScreen = (() => {
     intro.classList.add('exiting');
 
     // Swap to ON image
-    switchImg.src = 'assets/on.png';
+    switchImg.src = 'assets/on.webp';
 
     const tl = gsap.timeline();
 

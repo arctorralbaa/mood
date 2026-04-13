@@ -4,4 +4,3 @@
 -   Right-click the index.html file
 -   Select Open with Live Server
 
-This will launch the landing page in your browser for local testing.
