@@ -373,18 +373,10 @@ const ScrollManager = (() => {
     const centerAmount = lerp(0, CENTERING.crossing, zoomEase);
 
     const portalScale = PORTAL_SCALE.idle;
-    const edgeFade = clamp01(rangeProgress(entryProgress, PORTAL_EDGE_FADE.start, PORTAL_EDGE_FADE.end));
-    const portalBaseOpacity = isEntryStage
-      ? lerp(1, PORTAL_EDGE_FADE.minOpacity, edgeFade)
-      : PORTAL_EDGE_FADE.minOpacity;
     const entryFrameFade = isEntryStage
       ? lerp(1, 0, clamp01(rangeProgress(entryProgress, 0.85, 0.93)))
       : 0;
-    const tunnelMotionFade = isEntryStage
-      ? entryFrameFade
-      : 0;
-    const portalHideFade = 1 - clamp01(rangeProgress(entryProgress, 0.78, 0.90)); // O fades once expanded
-    const portalOpacity = portalBaseOpacity * tunnelMotionFade * portalHideFade;
+    const portalOpacity = entryFrameFade > 0.01 ? 1 : 0; // fully opaque or fully hidden
 
     const bgScale = lerp(BG_SCALE.idle, BG_SCALE.crossing, clamp01(entryProgress));
 
@@ -452,14 +444,14 @@ const ScrollManager = (() => {
       if (logoStage) {
         logoStage.style.transformOrigin = `${logoOriginCx}px ${logoOriginCy}px`;
         logoStage.style.transform = buildLogoStageTransform(logoScale, centerAmount);
-        logoStage.style.opacity = `${tunnelMotionFade.toFixed(4)}`;
+        logoStage.style.opacity = `${entryFrameFade.toFixed(4)}`;
       }
 
       if (logoImg) {
-        logoImg.style.opacity = `${tunnelMotionFade.toFixed(4)}`;
+        logoImg.style.opacity = `${entryFrameFade.toFixed(4)}`;
       }
 
-      portal.style.opacity = `${portalOpacity.toFixed(4)}`;
+      portal.style.opacity = `${portalOpacity}`;
 
       if (entryFrameFade > 0.02) {
         const sc = getScreenCenter();
@@ -527,7 +519,7 @@ const ScrollManager = (() => {
       trigger: spacer,
       start: 'top top',
       end: 'bottom bottom',
-      scrub: 0.4,
+      scrub: 0.8,
       onUpdate: ({ progress }) => {
         renderedProgress = progress;
         applyUnifiedTransition(progress); // direct — scrub:true already fires once per frame
