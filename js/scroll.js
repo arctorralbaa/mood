@@ -378,17 +378,19 @@ const ScrollManager = (() => {
       ? lerp(1, PORTAL_EDGE_FADE.minOpacity, edgeFade)
       : PORTAL_EDGE_FADE.minOpacity;
     const entryFrameFade = isEntryStage
-      ? lerp(1, 0, clamp01(rangeProgress(entryProgress, 0.45, 0.62)))
+      ? lerp(1, 0, clamp01(rangeProgress(entryProgress, 0.85, 0.93)))
       : 0;
     const tunnelMotionFade = isEntryStage
       ? entryFrameFade
       : 0;
-    const portalHideFade = 1 - clamp01(rangeProgress(entryProgress, 0.35, 0.60)); // O fades once expanded
+    const portalHideFade = 1 - clamp01(rangeProgress(entryProgress, 0.78, 0.90)); // O fades once expanded
     const portalOpacity = portalBaseOpacity * tunnelMotionFade * portalHideFade;
 
     const bgScale = lerp(BG_SCALE.idle, BG_SCALE.crossing, clamp01(entryProgress));
 
-    const tunnelProgress = lerp(TUNNEL_PROGRESS.idle, TUNNEL_PROGRESS.fullEnd, masterProgress);
+    const tunnelStart = SCROLL_STAGES.entryEnd * 0.93; // after hero fade completes
+    const tunnelDrive = clamp01(rangeProgress(masterProgress, tunnelStart, 1));
+    const tunnelProgress = lerp(TUNNEL_PROGRESS.idle, TUNNEL_PROGRESS.fullEnd, tunnelDrive);
 
     if (!_transitionActive) { // constant styles — write once
       tunnel.classList.add('active');
@@ -403,8 +405,8 @@ const ScrollManager = (() => {
     }
 
     // --- Portal commit/restore with hysteresis ---
-    const PORTAL_COMMIT = 0.66;
-    const PORTAL_RESTORE = 0.62;
+    const PORTAL_COMMIT = 0.96;
+    const PORTAL_RESTORE = 0.93;
 
     if (!_heroFrozen && entryProgress >= PORTAL_COMMIT) {
       // Hero committed — fully remove from rendering
@@ -442,16 +444,6 @@ const ScrollManager = (() => {
     if (!_heroFrozen) {
       hero.style.opacity = `${entryFrameFade.toFixed(4)}`;
       heroBg.style.transform = `scale(${bgScale.toFixed(4)})`;
-      const dimAmount = easeInOutCubic(entryProgress);
-      if (dimAmount < 0.02 || entryFrameFade < 0.08) {
-        if (heroBg._lastDim !== 0) {
-          heroBg.style.filter = 'none';
-          heroBg._lastDim = 0;
-        }
-      } else if (dimAmount > 0.98 || Math.abs(dimAmount - (heroBg._lastDim || 0)) > 0.05) {
-        heroBg.style.filter = `brightness(${lerp(1, 0.82, dimAmount).toFixed(3)}) saturate(${lerp(1, 0.93, dimAmount).toFixed(3)})`;
-        heroBg._lastDim = dimAmount;
-      }
 
       if (heroGrain) {
         heroGrain.style.opacity = `${lerp(0.03, 0.015, easeInOutCubic(entryProgress)).toFixed(4)}`;
@@ -535,7 +527,7 @@ const ScrollManager = (() => {
       trigger: spacer,
       start: 'top top',
       end: 'bottom bottom',
-      scrub: true,
+      scrub: 0.4,
       onUpdate: ({ progress }) => {
         renderedProgress = progress;
         applyUnifiedTransition(progress); // direct — scrub:true already fires once per frame

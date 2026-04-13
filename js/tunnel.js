@@ -25,7 +25,7 @@ const TunnelScene = (() => {
     entryStart: 0,
     entryEnd: 1,
   };
-  const CARD_START_Z = 4.0;
+  const CARD_START_Z = 1.5;
   const CARD_GAP = 2.8;
 
   const CARD = {
@@ -817,15 +817,12 @@ const TunnelScene = (() => {
     });
 
     if (endLogo) {
-      const endLogoFade = clamp01((currentProgress - 0.72) / 0.18); // visible only when deep
-      endLogo.visible = endLogoFade > 0.001;
-      endLogo.material.opacity = endLogoFade;
-      if (endLogo.visible) {
-        endLogo.position.y = 1.12 + Math.sin(time * 2.8) * 0.06;
-        const pulse = (Math.sin(time * 2.6) + 1) * 0.5;
-        const breathe = lerp(0.92, 1.16, pulse);
-        endLogo.scale.set(breathe, breathe, 1);
-      }
+      endLogo.visible = true;
+      endLogo.material.opacity = 1;
+      endLogo.position.y = 1.12 + Math.sin(time * 2.8) * 0.06;
+      const pulse = (Math.sin(time * 2.6) + 1) * 0.5;
+      const breathe = lerp(0.92, 1.16, pulse);
+      endLogo.scale.set(breathe, breathe, 1);
     }
 
     renderer.render(scene, camera);
