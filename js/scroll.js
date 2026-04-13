@@ -23,8 +23,16 @@ const ScrollManager = (() => {
     h: 325,
   };
 
+  // Static O path + oversized outer rect — set once on the <path> d, never rebuilt during scroll
+  const STATIC_O_PATH = O_INNER.map((cmd) => {
+    if (cmd[0] === 'Z') return 'Z';
+    if (cmd[0] === 'M') return `M${cmd[1]} ${cmd[2]}`;
+    return `C${cmd[1]} ${cmd[2]} ${cmd[3]} ${cmd[4]} ${cmd[5]} ${cmd[6]}`;
+  }).join(' ');
+  const STATIC_CLIP_D = 'M-5000,-5000 L5000,-5000 L5000,5000 L-5000,5000Z ' + STATIC_O_PATH;
+
   const SCROLL_STAGES = {
-    entryEnd: 0.62,
+    entryEnd: 0.22,
   };
 
   const CENTERING = {
@@ -98,7 +106,18 @@ const ScrollManager = (() => {
   let logoOriginCy = 0;
   let portalAnchorCx = 0;
   let portalAnchorCy = 0;
+  let baseSx0 = 1;
+  let baseSy0 = 1;
   let recalcRaf = 0;
+  let _transitionActive = false;
+  let _heroFrozen = false;
+  let _lastClipOcx = -1;
+  let _lastClipOcy = -1;
+  let _lastClipSx = -1;
+  let _lastClipSy = -1;
+  let pendingProgress = 0;
+  let renderedProgress = 0;
+  let updateRaf = 0;
 
   const SCREEN_CENTER_OFFSET = {
     x: 0,
@@ -172,6 +191,8 @@ const ScrollManager = (() => {
     updatePortalViewportMetrics(portal);
     portalAnchorCx = oCxVp;
     portalAnchorCy = oCyVp;
+    baseSx0 = baseSx;
+    baseSy0 = baseSy;
 
     const logoRect = logoStage.getBoundingClientRect();
     logoOriginCx = oCxVp - logoRect.left;
@@ -217,9 +238,13 @@ const ScrollManager = (() => {
   }
 
   function setClip(scale = 1) {
-    if (clipPathEl) {
-      clipPathEl.setAttribute('d', buildClipPath(scale));
-    }
+    if (!clipPathEl) return;
+    const sx = baseSx * scale;
+    const sy = baseSy * scale;
+    const tx = oCxVp - O_BOUNDS.cx * sx;
+    const ty = oCyVp - O_BOUNDS.cy * sy;
+    clipPathEl.setAttribute('transform', // SVG transform — no path rebuild
+      `translate(${tx.toFixed(1)},${ty.toFixed(1)}) scale(${sx.toFixed(4)},${sy.toFixed(4)})`);
   }
 
   function setTunnelTransform(tunnel, scale, shiftFrac, opacity = 1, extraYOffset = 0) {
@@ -262,6 +287,18 @@ const ScrollManager = (() => {
   }
 
   function applyIdleState() {
+    _transitionActive = false;
+    _heroFrozen = false;
+    renderedProgress = 0;
+
+    // Reset clip state to rest values before any style writes
+    baseSx = baseSx0;
+    baseSy = baseSy0;
+    oCxVp = portalAnchorCx;
+    oCyVp = portalAnchorCy;
+    _lastClipOcx = -1;
+    _lastClipOcy = -1;
+
     const {
       hero,
       heroBg,
@@ -329,8 +366,8 @@ const ScrollManager = (() => {
     const entryProgress = rangeProgress(masterProgress, 0, SCROLL_STAGES.entryEnd);
     const travelProgress = rangeProgress(masterProgress, SCROLL_STAGES.entryEnd, 1);
 
-    const zoomEase = easeInOutSine(entryProgress);
-    const handoffProgress = easeInOutSine(entryProgress);
+    const zoomEase = entryProgress;
+    const handoffProgress = entryProgress;
 
     const logoScale = lerp(LOGO_SCALE.idle, LOGO_SCALE.crossing, zoomEase);
     const centerAmount = lerp(0, CENTERING.crossing, zoomEase);
@@ -341,69 +378,124 @@ const ScrollManager = (() => {
       ? lerp(1, PORTAL_EDGE_FADE.minOpacity, edgeFade)
       : PORTAL_EDGE_FADE.minOpacity;
     const entryFrameFade = isEntryStage
-      ? lerp(1, 0, clamp01(rangeProgress(entryProgress, 0.65, 0.92)))
+      ? lerp(1, 0, clamp01(rangeProgress(entryProgress, 0.45, 0.62)))
       : 0;
     const tunnelMotionFade = isEntryStage
       ? entryFrameFade
       : 0;
-    const portalOpacity = portalBaseOpacity * tunnelMotionFade;
+    const portalHideFade = 1 - clamp01(rangeProgress(entryProgress, 0.35, 0.60)); // O fades once expanded
+    const portalOpacity = portalBaseOpacity * tunnelMotionFade * portalHideFade;
 
     const bgScale = lerp(BG_SCALE.idle, BG_SCALE.crossing, clamp01(entryProgress));
 
-    let tunnelProgress = TUNNEL_PROGRESS.idle;
-    if (!isEntryStage) {
-      tunnelProgress = lerp(TUNNEL_PROGRESS.idle, TUNNEL_PROGRESS.fullEnd, easeInOutSine(travelProgress));
-    }
+    const tunnelProgress = lerp(TUNNEL_PROGRESS.idle, TUNNEL_PROGRESS.fullEnd, masterProgress);
 
-    tunnel.classList.add('active');
-    hero.style.pointerEvents = 'none';
-    hero.style.visibility = 'visible';
-    hero.style.transform = 'none';
-    hero.style.opacity = `${entryFrameFade.toFixed(4)}`;
-    hero.style.clipPath = 'url(#hero-clip)';
-    hero.style.webkitClipPath = 'url(#hero-clip)';
-    heroBg.style.transform = `scale(${bgScale.toFixed(4)})`;
-    const dimAmount = easeInOutCubic(entryProgress);
-    if (dimAmount < 0.01) {
-      heroBg.style.filter = 'none';
-    } else if (dimAmount > 0.99 || Math.abs(dimAmount - (heroBg._lastDim || 0)) > 0.02) {
-      heroBg.style.filter = `brightness(${lerp(1, 0.82, dimAmount).toFixed(3)}) saturate(${lerp(1, 0.93, dimAmount).toFixed(3)})`;
-      heroBg._lastDim = dimAmount;
-    }
-
-    if (heroGrain) {
-      heroGrain.style.opacity = `${lerp(0.03, 0.015, easeInOutCubic(entryProgress)).toFixed(4)}`;
-    }
-
-    if (logoStage) {
-      logoStage.style.transformOrigin = `${logoOriginCx}px ${logoOriginCy}px`;
-      logoStage.style.transform = buildLogoStageTransform(logoScale, centerAmount);
-      logoStage.style.opacity = `${tunnelMotionFade.toFixed(4)}`;
-    }
-
-    if (logoImg) {
-      logoImg.style.opacity = `${tunnelMotionFade.toFixed(4)}`;
-    }
-
-    portal.style.opacity = `${portalOpacity.toFixed(4)}`;
-    portal.style.transformOrigin = '50% 50%';
-    if (Math.abs(portalScale - 1) < 0.001) {
+    if (!_transitionActive) { // constant styles — write once
+      tunnel.classList.add('active');
+      hero.style.pointerEvents = 'none';
+      hero.style.visibility = 'visible';
+      hero.style.transform = 'none';
+      hero.style.clipPath = 'url(#hero-clip)';
+      hero.style.webkitClipPath = 'url(#hero-clip)';
+      portal.style.transformOrigin = '50% 50%';
       portal.style.transform = 'none';
-    } else {
-      portal.style.transform = `scale(${portalScale.toFixed(4)})`;
+      _transitionActive = true;
     }
 
-    updatePortalViewportMetrics(portal);
-    heroBg.style.transformOrigin = `${oCxVp}px ${oCyVp}px`;
-    setClip(CLIP_SCALE.handoffOverscan);
+    // --- Portal commit/restore with hysteresis ---
+    const PORTAL_COMMIT = 0.66;
+    const PORTAL_RESTORE = 0.62;
+
+    if (!_heroFrozen && entryProgress >= PORTAL_COMMIT) {
+      // Hero committed — fully remove from rendering
+      hero.style.opacity = '0';
+      hero.style.visibility = 'hidden';
+      hero.style.clipPath = 'none';
+      hero.style.webkitClipPath = 'none';
+      heroBg.style.filter = 'none';
+      heroBg._lastDim = 0;
+      if (heroGrain) heroGrain.style.opacity = '0';
+      if (logoStage) logoStage.style.opacity = '0';
+      if (logoImg) logoImg.style.opacity = '0';
+      portal.style.opacity = '0';
+      _heroFrozen = true;
+    }
+
+    if (_heroFrozen && entryProgress <= PORTAL_RESTORE) {
+      // Reverse scroll — restore hero display before resuming writes
+      hero.style.visibility = 'visible';
+      hero.style.clipPath = 'url(#hero-clip)';
+      hero.style.webkitClipPath = 'url(#hero-clip)';
+      // Recompute clip state from current progress
+      const sc = getScreenCenter();
+      oCxVp = lerp(portalAnchorCx, sc.x, centerAmount);
+      oCyVp = lerp(portalAnchorCy, sc.y, centerAmount);
+      baseSx = baseSx0 * logoScale;
+      baseSy = baseSy0 * logoScale;
+      heroBg.style.transformOrigin = `${oCxVp.toFixed(1)}px ${oCyVp.toFixed(1)}px`;
+      _lastClipOcx = Math.round(oCxVp * 2) / 2;
+      _lastClipOcy = Math.round(oCyVp * 2) / 2;
+      setClip(CLIP_SCALE.handoffOverscan);
+      _heroFrozen = false;
+    }
+
+    if (!_heroFrozen) {
+      hero.style.opacity = `${entryFrameFade.toFixed(4)}`;
+      heroBg.style.transform = `scale(${bgScale.toFixed(4)})`;
+      const dimAmount = easeInOutCubic(entryProgress);
+      if (dimAmount < 0.02 || entryFrameFade < 0.08) {
+        if (heroBg._lastDim !== 0) {
+          heroBg.style.filter = 'none';
+          heroBg._lastDim = 0;
+        }
+      } else if (dimAmount > 0.98 || Math.abs(dimAmount - (heroBg._lastDim || 0)) > 0.05) {
+        heroBg.style.filter = `brightness(${lerp(1, 0.82, dimAmount).toFixed(3)}) saturate(${lerp(1, 0.93, dimAmount).toFixed(3)})`;
+        heroBg._lastDim = dimAmount;
+      }
+
+      if (heroGrain) {
+        heroGrain.style.opacity = `${lerp(0.03, 0.015, easeInOutCubic(entryProgress)).toFixed(4)}`;
+      }
+
+      if (logoStage) {
+        logoStage.style.transformOrigin = `${logoOriginCx}px ${logoOriginCy}px`;
+        logoStage.style.transform = buildLogoStageTransform(logoScale, centerAmount);
+        logoStage.style.opacity = `${tunnelMotionFade.toFixed(4)}`;
+      }
+
+      if (logoImg) {
+        logoImg.style.opacity = `${tunnelMotionFade.toFixed(4)}`;
+      }
+
+      portal.style.opacity = `${portalOpacity.toFixed(4)}`;
+
+      if (entryFrameFade > 0.02) {
+        const sc = getScreenCenter();
+        oCxVp = lerp(portalAnchorCx, sc.x, centerAmount);
+        oCyVp = lerp(portalAnchorCy, sc.y, centerAmount);
+        baseSx = baseSx0 * logoScale;
+        baseSy = baseSy0 * logoScale;
+
+        const roundedCx = Math.round(oCxVp * 2) / 2;
+        const roundedCy = Math.round(oCyVp * 2) / 2;
+        if (roundedCx !== _lastClipOcx || roundedCy !== _lastClipOcy) {
+          heroBg.style.transformOrigin = `${roundedCx.toFixed(1)}px ${roundedCy.toFixed(1)}px`;
+          _lastClipOcx = roundedCx;
+          _lastClipOcy = roundedCy;
+        }
+
+        setClip(CLIP_SCALE.handoffOverscan);
+      }
+    } // end portal-active band
+    const tunnelHandoff = clamp01(handoffProgress / 0.40); // fullscreen before hero fade starts
     const tunnelScale = isEntryStage
-      ? lerp(TUNNEL_VIEW.idleScale, TUNNEL_VIEW.handoffScale, handoffProgress)
+      ? lerp(TUNNEL_VIEW.idleScale, TUNNEL_VIEW.handoffScale, tunnelHandoff)
       : TUNNEL_VIEW.handoffScale;
     const tunnelShift = isEntryStage
-      ? lerp(TUNNEL_VIEW.idleShift, TUNNEL_VIEW.handoffShift, handoffProgress)
+      ? lerp(TUNNEL_VIEW.idleShift, TUNNEL_VIEW.handoffShift, tunnelHandoff)
       : TUNNEL_VIEW.handoffShift;
     const tunnelYOffset = isEntryStage
-      ? lerp(TUNNEL_VIEW.idleYOffset, TUNNEL_VIEW.handoffYOffset, handoffProgress)
+      ? lerp(TUNNEL_VIEW.idleYOffset, TUNNEL_VIEW.handoffYOffset, tunnelHandoff)
       : TUNNEL_VIEW.handoffYOffset;
 
     setTunnelTransform(tunnel, tunnelScale, tunnelShift, 1, tunnelYOffset);
@@ -430,6 +522,12 @@ const ScrollManager = (() => {
     recalcRaf = requestAnimationFrame(recalc);
   }
 
+  function cancelPendingTransitionUpdate() {
+    if (!updateRaf) return;
+    cancelAnimationFrame(updateRaf);
+    updateRaf = 0;
+  }
+
   function initUnifiedScroll() {
     const { spacer, tunnel } = els;
 
@@ -437,16 +535,17 @@ const ScrollManager = (() => {
       trigger: spacer,
       start: 'top top',
       end: 'bottom bottom',
-      scrub: 0.05,  // single smooth pass — DOM and 3D stay in sync
+      scrub: true,
       onUpdate: ({ progress }) => {
-        applyUnifiedTransition(progress);
-        tunnel.style.opacity = '1';
-        tunnel.classList.add('active');
+        renderedProgress = progress;
+        applyUnifiedTransition(progress); // direct — scrub:true already fires once per frame
       },
-      onEnterBack: () => {
-        applyUnifiedTransition(1);
+      onEnterBack: (self) => {
+        renderedProgress = self.progress;
+        applyUnifiedTransition(self.progress);
       },
       onLeaveBack: () => {
+        cancelPendingTransitionUpdate();
         applyIdleState();
       }
     });
@@ -468,6 +567,7 @@ const ScrollManager = (() => {
     };
 
     clipPathEl = document.getElementById('hero-clip-path');
+    if (clipPathEl) clipPathEl.setAttribute('d', STATIC_CLIP_D); // static geometry — set once
     if (!els.hero || !els.heroBg || !els.logoWrap || !els.logoStage || !els.portal || !els.tunnel || !els.spacer || !clipPathEl) {
       return;
     }

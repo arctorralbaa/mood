@@ -788,10 +788,9 @@ const TunnelScene = (() => {
     requestAnimationFrame(animate);
 
     time += 0.004;
-    const resp = scrollProgress < currentProgress ? 0.98 : CAMERA_RESPONSE; // near-instant reverse
-    currentProgress = lerp(currentProgress, scrollProgress, resp);
+    currentProgress = scrollProgress; // keep 3D exactly in sync with scroll progress
     const entryProgress = rangeProgress(currentProgress, CAMERA_TRAVEL.entryStart, CAMERA_TRAVEL.entryEnd);
-    const travelProgress = easeInOutSine(entryProgress);
+    const travelProgress = entryProgress; // remove extra easing layer from camera travel
     const cameraZ = CAM_Z0 - travelProgress * MAX_TRAVEL;
     const lookAhead = lerp(17.6, 20, travelProgress);
     const verticalBlend = clamp01((currentProgress - ENTRY_LOCK_PROGRESS) / (1 - ENTRY_LOCK_PROGRESS));
@@ -818,12 +817,15 @@ const TunnelScene = (() => {
     });
 
     if (endLogo) {
-      endLogo.position.y = 1.12 + Math.sin(time * 2.8) * 0.06;
-      const pulse = (Math.sin(time * 2.6) + 1) * 0.5;
-      const breathe = lerp(0.92, 1.16, pulse);
-      endLogo.scale.set(breathe, breathe, 1);
-      endLogo.material.opacity = 1;
-      endLogo.visible = true;
+      const endLogoFade = clamp01((currentProgress - 0.72) / 0.18); // visible only when deep
+      endLogo.visible = endLogoFade > 0.001;
+      endLogo.material.opacity = endLogoFade;
+      if (endLogo.visible) {
+        endLogo.position.y = 1.12 + Math.sin(time * 2.8) * 0.06;
+        const pulse = (Math.sin(time * 2.6) + 1) * 0.5;
+        const breathe = lerp(0.92, 1.16, pulse);
+        endLogo.scale.set(breathe, breathe, 1);
+      }
     }
 
     renderer.render(scene, camera);
