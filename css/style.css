@@ -342,10 +342,10 @@ body {
   top: var(--portal-top);
   width: var(--portal-width);
   aspect-ratio: 331 / 325;
-  cursor: pointer;
+  cursor: default;
   z-index: 6;
   will-change: opacity;
-  pointer-events: auto;
+  pointer-events: none;
 }
 
 #o-portal svg {
@@ -360,16 +360,6 @@ body {
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0);
   transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
-}
-
-#o-portal:hover .o-ring {
-  border-color: rgba(255, 220, 180, 0.5);
-  box-shadow: 0 0 24px rgba(255, 220, 150, 0.25);
-  transform: scale(1.15);
-}
-
-#o-portal:active .o-ring {
-  transform: scale(0.95);
 }
 
 /* 

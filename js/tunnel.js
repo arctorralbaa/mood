@@ -18,9 +18,8 @@ const TunnelScene = (() => {
   const ENTRY_LOCK_PROGRESS = 0;
   const ENTRY_FOV = 66;
   const CRUISE_FOV = 53;
-   const ENTRY_CAMERA_Y = 1.56;
+  const ENTRY_CAMERA_Y = 1.56;
   const ENTRY_LOOK_Y = 1.92;
-  const CAMERA_RESPONSE = 0.95;  // near-instant — stays in sync with scrubbed DOM
   const CAMERA_TRAVEL = {
     entryStart: 0,
     entryEnd: 1,
@@ -77,11 +76,6 @@ const TunnelScene = (() => {
 
   function clamp01(value) {
     return Math.max(0, Math.min(1, value));
-  }
-
-  function easeInOutSine(value) {
-    const p = clamp01(value);
-    return -(Math.cos(Math.PI * p) - 1) / 2;
   }
 
   function rangeProgress(value, start, end) {
@@ -299,91 +293,6 @@ const TunnelScene = (() => {
     const group = new THREE.Group();
     group.add(ring);
     return group;
-  }
-
-  function createFloorTexture(size = 512) {
-    const canvas = document.createElement('canvas');
-    canvas.width = canvas.height = size;
-    const ctx = canvas.getContext('2d');
-
-    const base = ctx.createLinearGradient(0, 0, 0, size);
-    base.addColorStop(0, '#f2ece5');
-    base.addColorStop(0.48, '#ede6dd');
-    base.addColorStop(1, '#e8dfd5');
-    ctx.fillStyle = base;
-    ctx.fillRect(0, 0, size, size);
-
-    const tonalWash = ctx.createLinearGradient(0, 0, size, size);
-    tonalWash.addColorStop(0, 'rgba(238,232,224,0.05)');
-    tonalWash.addColorStop(0.45, 'rgba(228,220,210,0.03)');
-    tonalWash.addColorStop(1, 'rgba(218,210,200,0.05)');
-    ctx.fillStyle = tonalWash;
-    ctx.fillRect(0, 0, size, size);
-
-    const galleryGlow = ctx.createLinearGradient(0, 0, 0, size);
-    galleryGlow.addColorStop(0, 'rgba(250,246,240,0.01)');
-    galleryGlow.addColorStop(0.62, 'rgba(240,234,226,0.02)');
-    galleryGlow.addColorStop(1, 'rgba(230,222,212,0.04)');
-    ctx.fillStyle = galleryGlow;
-    ctx.fillRect(0, 0, size, size);
-
-    const imgData = ctx.getImageData(0, 0, size, size);
-    const data = imgData.data;
-
-    for (let i = 0; i < data.length; i += 4) {
-      const grain = (Math.random() - 0.5) * 3;
-      const tonalVariation = Math.sin((i / 4) * 0.00024) * 0.5;
-
-      data[i] = clamp255(data[i] + grain + tonalVariation);
-      data[i + 1] = clamp255(data[i + 1] + grain + tonalVariation);
-      data[i + 2] = clamp255(data[i + 2] + grain + tonalVariation);
-    }
-
-    ctx.putImageData(imgData, 0, 0);
-
-    ctx.globalAlpha = 0.04;
-    for (let i = 0; i < 14; i += 1) {
-      const x = Math.random() * size;
-      const y = Math.random() * size;
-      const r = 80 + Math.random() * 200;
-
-      const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
-      grad.addColorStop(0, 'rgba(220,215,208,0.05)');
-      grad.addColorStop(0.45, 'rgba(210,204,196,0.03)');
-      grad.addColorStop(1, 'rgba(230,226,220,0)');
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.arc(x, y, r, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    ctx.globalAlpha = 1;
-    for (let i = 0; i < 1800; i += 1) {
-      const x = Math.random() * size;
-      const y = Math.random() * size;
-      const w = 0.3 + Math.random() * 0.8;
-      const h = 0.3 + Math.random() * 0.8;
-
-      ctx.fillStyle = Math.random() > 0.7
-        ? 'rgba(200,194,186,0.04)'
-        : Math.random() > 0.4
-          ? 'rgba(230,224,216,0.03)'
-          : 'rgba(215,208,200,0.025)';
-      ctx.fillRect(x, y, w, h);
-    }
-
-    const reflection = ctx.createLinearGradient(size * 0.12, 0, size * 0.88, size);
-    reflection.addColorStop(0, 'rgba(230,226,220,0)');
-    reflection.addColorStop(0.5, 'rgba(210,206,200,0.025)');
-    reflection.addColorStop(1, 'rgba(230,226,220,0)');
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = reflection;
-    ctx.fillRect(0, 0, size, size);
-
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set(1.8, 2.2);
-    return texture;
   }
 
   function clamp255(value) {

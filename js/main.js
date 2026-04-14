@@ -1,6 +1,6 @@
-/* 
-   Main – Initialize All Modules
-    */
+/*
+   Main - Initialize all modules
+*/
 if ('scrollRestoration' in history) {
   history.scrollRestoration = 'manual';
 }
@@ -15,17 +15,8 @@ resetToHero();
 
 document.addEventListener('DOMContentLoaded', () => {
   resetToHero();
-
-  // Intro screen (light switch entrance)
   IntroScreen.init();
-
-  // Light switch (2nd O hotspot)
-  LightSwitch.init();
-
-  // Three.js tunnel scene
   TunnelScene.init();
-
-  // Scroll transitions (hero → tunnel)
   ScrollManager.init();
 });
 

@@ -23,7 +23,7 @@ const ScrollManager = (() => {
     h: 325,
   };
 
-  // Static O path + oversized outer rect — set once on the <path> d, never rebuilt during scroll
+  // Static O path + oversized outer rect - set once on the <path> d, never rebuilt during scroll
   const STATIC_O_PATH = O_INNER.map((cmd) => {
     if (cmd[0] === 'Z') return 'Z';
     if (cmd[0] === 'M') return `M${cmd[1]} ${cmd[2]}`;
@@ -35,11 +35,7 @@ const ScrollManager = (() => {
     entryEnd: 0.22,
   };
 
-  const CENTERING = {
-    brand: 0.1,
-    commit: 0.18,
-    crossing: 0.72,
-  };
+  const CENTERING_CROSSING = 0.72;
 
   const ENTRY_TUNNEL = {
     idle: 0.02,
@@ -48,48 +44,28 @@ const ScrollManager = (() => {
 
   const TUNNEL_PROGRESS = {
     idle: ENTRY_TUNNEL.idle,
-    handoffEnd: ENTRY_TUNNEL.handoff,
     fullEnd: 1,
   };
 
   const CLIP_SCALE = {
     idle: 1,
     handoffOverscan: 1.002,
-    insideOverscan: 1.004,
   };
 
   const LOGO_SCALE = {
     idle: 1.08,
-    brand: 1.24,
-    commit: 1.42,
     crossing: 13.5,
-  };
-
-  const PORTAL_SCALE = {
-    idle: 1,
-    commit: 1,
-    crossing: 1,
-  };
-
-  const PORTAL_EDGE_FADE = {
-    start: 0.992,
-    end: 1,
-    minOpacity: 0,
   };
 
   const BG_SCALE = {
     idle: 1.04,
-    brand: 1.1,
     crossing: 1.16,
   };
 
   const TUNNEL_VIEW = {
     idleScale: 0.86,
-    phase2Scale: 1,
     idleShift: 1,
-    phase2Shift: 0,
     idleYOffset: -8,
-    phase2YOffset: 0,
     handoffScale: 1,
     handoffShift: 0,
     handoffYOffset: 0,
@@ -113,11 +89,6 @@ const ScrollManager = (() => {
   let _heroFrozen = false;
   let _lastClipOcx = -1;
   let _lastClipOcy = -1;
-  let _lastClipSx = -1;
-  let _lastClipSy = -1;
-  let pendingProgress = 0;
-  let renderedProgress = 0;
-  let updateRaf = 0;
 
   const SCREEN_CENTER_OFFSET = {
     x: 0,
@@ -139,29 +110,9 @@ const ScrollManager = (() => {
     return a + (b - a) * t;
   }
 
-  function easeOutCubic(t) {
-    const p = clamp01(t);
-    return 1 - ((1 - p) ** 3);
-  }
-
   function easeInOutCubic(t) {
     const p = clamp01(t);
     return p < 0.5 ? 4 * p * p * p : 1 - (((-2 * p + 2) ** 3) / 2);
-  }
-
-  function easeInCubic(t) {
-    const p = clamp01(t);
-    return p * p * p;
-  }
-
-  function easeInOutSine(t) {
-    const p = clamp01(t);
-    return -(Math.cos(Math.PI * p) - 1) / 2;
-  }
-
-  function easeInExpo(t) {
-    const p = clamp01(t);
-    return p === 0 ? 0 : 2 ** (10 * p - 10);
   }
 
   function rangeProgress(value, start, end) {
@@ -226,24 +177,13 @@ const ScrollManager = (() => {
     return `translate(calc(var(--logo-base-nudge-x) + var(--logo-nudge-x) + ${dx.toFixed(2)}px), calc(var(--logo-base-nudge-y) + var(--logo-nudge-y) + ${dy.toFixed(2)}px)) scale(${scale.toFixed(4)})`;
   }
 
-  function buildClipPath(scale = 1) {
-    const w = window.innerWidth;
-    const h = window.innerHeight;
-    const sx = baseSx * scale;
-    const sy = baseSy * scale;
-    const tx = oCxVp - O_BOUNDS.cx * sx;
-    const ty = oCyVp - O_BOUNDS.cy * sy;
-
-    return `M0,0 L${w},0 L${w},${h} L0,${h}Z ${transformOPath(tx, ty, sx, sy)}`;
-  }
-
   function setClip(scale = 1) {
     if (!clipPathEl) return;
     const sx = baseSx * scale;
     const sy = baseSy * scale;
     const tx = oCxVp - O_BOUNDS.cx * sx;
     const ty = oCyVp - O_BOUNDS.cy * sy;
-    clipPathEl.setAttribute('transform', // SVG transform — no path rebuild
+    clipPathEl.setAttribute('transform', // SVG transform - no path rebuild
       `translate(${tx.toFixed(1)},${ty.toFixed(1)}) scale(${sx.toFixed(4)},${sy.toFixed(4)})`);
   }
 
@@ -270,26 +210,9 @@ const ScrollManager = (() => {
     }
   }
 
-  function showHeroPortalFrame() {
-    if (!els?.hero) return;
-    els.hero.style.visibility = 'visible';
-    els.hero.style.opacity = '1';
-    els.hero.style.clipPath = 'url(#hero-clip)';
-    els.hero.style.webkitClipPath = 'url(#hero-clip)';
-  }
-
-  function hideHeroForTunnel() {
-    if (!els?.hero) return;
-    els.hero.style.visibility = 'hidden';
-    els.hero.style.opacity = '0';
-    els.hero.style.clipPath = 'none';
-    els.hero.style.webkitClipPath = 'none';
-  }
-
   function applyIdleState() {
     _transitionActive = false;
     _heroFrozen = false;
-    renderedProgress = 0;
 
     // Reset clip state to rest values before any style writes
     baseSx = baseSx0;
@@ -364,15 +287,12 @@ const ScrollManager = (() => {
 
     const isEntryStage = masterProgress < SCROLL_STAGES.entryEnd;
     const entryProgress = rangeProgress(masterProgress, 0, SCROLL_STAGES.entryEnd);
-    const travelProgress = rangeProgress(masterProgress, SCROLL_STAGES.entryEnd, 1);
 
     const zoomEase = entryProgress;
     const handoffProgress = entryProgress;
 
     const logoScale = lerp(LOGO_SCALE.idle, LOGO_SCALE.crossing, zoomEase);
-    const centerAmount = lerp(0, CENTERING.crossing, zoomEase);
-
-    const portalScale = PORTAL_SCALE.idle;
+    const centerAmount = lerp(0, CENTERING_CROSSING, zoomEase);
     const entryFrameFade = isEntryStage
       ? lerp(1, 0, clamp01(rangeProgress(entryProgress, 0.85, 0.93)))
       : 0;
@@ -384,7 +304,7 @@ const ScrollManager = (() => {
     const tunnelDrive = clamp01(rangeProgress(masterProgress, tunnelStart, 1));
     const tunnelProgress = lerp(TUNNEL_PROGRESS.idle, TUNNEL_PROGRESS.fullEnd, tunnelDrive);
 
-    if (!_transitionActive) { // constant styles — write once
+    if (!_transitionActive) { // constant styles - write once
       tunnel.classList.add('active');
       hero.style.pointerEvents = 'none';
       hero.style.visibility = 'visible';
@@ -401,7 +321,7 @@ const ScrollManager = (() => {
     const PORTAL_RESTORE = 0.93;
 
     if (!_heroFrozen && entryProgress >= PORTAL_COMMIT) {
-      // Hero committed — fully remove from rendering
+      // Hero committed - fully remove from rendering
       hero.style.opacity = '0';
       hero.style.visibility = 'hidden';
       hero.style.clipPath = 'none';
@@ -416,7 +336,7 @@ const ScrollManager = (() => {
     }
 
     if (_heroFrozen && entryProgress <= PORTAL_RESTORE) {
-      // Reverse scroll — restore hero display before resuming writes
+      // Reverse scroll - restore hero display before resuming writes
       hero.style.visibility = 'visible';
       hero.style.clipPath = 'url(#hero-clip)';
       hero.style.webkitClipPath = 'url(#hero-clip)';
@@ -506,14 +426,8 @@ const ScrollManager = (() => {
     recalcRaf = requestAnimationFrame(recalc);
   }
 
-  function cancelPendingTransitionUpdate() {
-    if (!updateRaf) return;
-    cancelAnimationFrame(updateRaf);
-    updateRaf = 0;
-  }
-
   function initUnifiedScroll() {
-    const { spacer, tunnel } = els;
+    const { spacer } = els;
 
     ScrollTrigger.create({
       trigger: spacer,
@@ -521,15 +435,12 @@ const ScrollManager = (() => {
       end: 'bottom bottom',
       scrub: 0.8,
       onUpdate: ({ progress }) => {
-        renderedProgress = progress;
-        applyUnifiedTransition(progress); // direct — scrub:true already fires once per frame
+        applyUnifiedTransition(progress); // direct - scrub:true already fires once per frame
       },
       onEnterBack: (self) => {
-        renderedProgress = self.progress;
         applyUnifiedTransition(self.progress);
       },
       onLeaveBack: () => {
-        cancelPendingTransitionUpdate();
         applyIdleState();
       }
     });
@@ -551,7 +462,7 @@ const ScrollManager = (() => {
     };
 
     clipPathEl = document.getElementById('hero-clip-path');
-    if (clipPathEl) clipPathEl.setAttribute('d', STATIC_CLIP_D); // static geometry — set once
+    if (clipPathEl) clipPathEl.setAttribute('d', STATIC_CLIP_D); // static geometry - set once
     if (!els.hero || !els.heroBg || !els.logoWrap || !els.logoStage || !els.portal || !els.tunnel || !els.spacer || !clipPathEl) {
       return;
     }
