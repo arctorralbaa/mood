@@ -12,6 +12,14 @@
 html {
   scroll-behavior: auto;
   overflow-x: hidden;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+html::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 body {
@@ -19,6 +27,14 @@ body {
   background: #e5d8c8;
   color: #2d2d2d;
   overflow-x: hidden;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+body::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 /* 
@@ -367,10 +383,10 @@ body {
     */
 #tunnel-container {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
+  top: -2px;
+  left: -2px;
+  width: calc(100vw + 4px);
+  height: calc(100vh + 4px);
   z-index: 5;
   pointer-events: none;
   will-change: transform, opacity;

@@ -32,10 +32,10 @@ const ScrollManager = (() => {
   const STATIC_CLIP_D = 'M-5000,-5000 L5000,-5000 L5000,5000 L-5000,5000Z ' + STATIC_O_PATH;
 
   const SCROLL_STAGES = {
-    entryEnd: 0.22,
+    entryEnd: 0.1,
   };
 
-  const CENTERING_CROSSING = 0.72;
+  const CENTERING_CROSSING = 0.55;
 
   const ENTRY_TUNNEL = {
     idle: 0.02,
@@ -70,6 +70,7 @@ const ScrollManager = (() => {
     handoffShift: 0,
     handoffYOffset: 0,
   };
+  const POST_ENTRY_HANDOFF_SPAN = 0.08;
 
   let clipPathEl = null;
   let baseSx = 1;
@@ -85,10 +86,17 @@ const ScrollManager = (() => {
   let baseSx0 = 1;
   let baseSy0 = 1;
   let recalcRaf = 0;
+  let renderedProgress = -1;
+  let mainScrollTrigger = null;
   let _transitionActive = false;
   let _heroFrozen = false;
   let _lastClipOcx = -1;
   let _lastClipOcy = -1;
+  let _lastClipTransform = '';
+  let _lastTunnelTransform = '';
+  let _lastTunnelOrigin = '';
+  let _lastTunnelOpacity = '';
+  const PROGRESS_EPSILON = 0.0002;
 
   const SCREEN_CENTER_OFFSET = {
     x: 0,
@@ -183,8 +191,10 @@ const ScrollManager = (() => {
     const sy = baseSy * scale;
     const tx = oCxVp - O_BOUNDS.cx * sx;
     const ty = oCyVp - O_BOUNDS.cy * sy;
-    clipPathEl.setAttribute('transform', // SVG transform - no path rebuild
-      `translate(${tx.toFixed(1)},${ty.toFixed(1)}) scale(${sx.toFixed(4)},${sy.toFixed(4)})`);
+    const transform = `translate(${tx.toFixed(1)},${ty.toFixed(1)}) scale(${sx.toFixed(4)},${sy.toFixed(4)})`;
+    if (transform === _lastClipTransform) return;
+    _lastClipTransform = transform;
+    clipPathEl.setAttribute('transform', transform); // SVG transform - no path rebuild
   }
 
   function setTunnelTransform(tunnel, scale, shiftFrac, opacity = 1, extraYOffset = 0) {
@@ -193,15 +203,31 @@ const ScrollManager = (() => {
     const dx = (oCxVp - vpCx) * shiftFrac;
     const dy = (oCyVp - vpCy) * shiftFrac + extraYOffset;
 
-    tunnel.style.opacity = `${opacity}`;
+    const opacityText = `${opacity}`;
+    if (opacityText !== _lastTunnelOpacity) {
+      tunnel.style.opacity = opacityText;
+      _lastTunnelOpacity = opacityText;
+    }
 
     if (Math.abs(scale - 1) < 0.001 && Math.abs(shiftFrac) < 0.001 && Math.abs(extraYOffset) < 0.001) {
-      tunnel.style.transform = 'none';
+      if (_lastTunnelTransform !== 'none') {
+        tunnel.style.transform = 'none';
+        _lastTunnelTransform = 'none';
+      }
       return;
     }
 
-    tunnel.style.transformOrigin = `${oCxVp.toFixed(1)}px ${oCyVp.toFixed(1)}px`;
-    tunnel.style.transform = `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px) scale(${scale.toFixed(4)})`;
+    const origin = `${oCxVp.toFixed(1)}px ${oCyVp.toFixed(1)}px`;
+    if (origin !== _lastTunnelOrigin) {
+      tunnel.style.transformOrigin = origin;
+      _lastTunnelOrigin = origin;
+    }
+
+    const transform = `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px) scale(${scale.toFixed(4)})`;
+    if (transform !== _lastTunnelTransform) {
+      tunnel.style.transform = transform;
+      _lastTunnelTransform = transform;
+    }
   }
 
   function setTunnelProgress(progress) {
@@ -221,6 +247,10 @@ const ScrollManager = (() => {
     oCyVp = portalAnchorCy;
     _lastClipOcx = -1;
     _lastClipOcy = -1;
+    _lastClipTransform = '';
+    _lastTunnelTransform = '';
+    _lastTunnelOrigin = '';
+    _lastTunnelOpacity = '';
 
     const {
       hero,
@@ -274,6 +304,13 @@ const ScrollManager = (() => {
     setClip(CLIP_SCALE.idle);
   }
 
+  function applyTransitionAtProgress(progress) {
+    const clamped = clamp01(progress);
+    if (Math.abs(clamped - renderedProgress) <= PROGRESS_EPSILON) return;
+    renderedProgress = clamped;
+    applyUnifiedTransition(clamped);
+  }
+
   function applyUnifiedTransition(masterProgress) {
     const {
       hero,
@@ -300,9 +337,10 @@ const ScrollManager = (() => {
 
     const bgScale = lerp(BG_SCALE.idle, BG_SCALE.crossing, clamp01(entryProgress));
 
-    const tunnelStart = SCROLL_STAGES.entryEnd * 0.93; // after hero fade completes
-    const tunnelDrive = clamp01(rangeProgress(masterProgress, tunnelStart, 1));
-    const tunnelProgress = lerp(TUNNEL_PROGRESS.idle, TUNNEL_PROGRESS.fullEnd, tunnelDrive);
+    const tunnelDrive = clamp01(rangeProgress(masterProgress, SCROLL_STAGES.entryEnd, 1));
+    const tunnelProgress = isEntryStage
+      ? TUNNEL_PROGRESS.idle
+      : lerp(TUNNEL_PROGRESS.idle, TUNNEL_PROGRESS.fullEnd, tunnelDrive);
 
     if (!_transitionActive) { // constant styles - write once
       tunnel.classList.add('active');
@@ -391,16 +429,20 @@ const ScrollManager = (() => {
         setClip(CLIP_SCALE.handoffOverscan);
       }
     } // end portal-active band
-    const tunnelHandoff = clamp01(handoffProgress / 0.40); // fullscreen before hero fade starts
-    const tunnelScale = isEntryStage
-      ? lerp(TUNNEL_VIEW.idleScale, TUNNEL_VIEW.handoffScale, tunnelHandoff)
-      : TUNNEL_VIEW.handoffScale;
-    const tunnelShift = isEntryStage
-      ? lerp(TUNNEL_VIEW.idleShift, TUNNEL_VIEW.handoffShift, tunnelHandoff)
-      : TUNNEL_VIEW.handoffShift;
-    const tunnelYOffset = isEntryStage
-      ? lerp(TUNNEL_VIEW.idleYOffset, TUNNEL_VIEW.handoffYOffset, tunnelHandoff)
-      : TUNNEL_VIEW.handoffYOffset;
+    const postEntryHandoff = clamp01(rangeProgress(
+      masterProgress,
+      SCROLL_STAGES.entryEnd,
+      SCROLL_STAGES.entryEnd + POST_ENTRY_HANDOFF_SPAN
+    ));
+    // Prevent edge leaks during hero fade by forcing fullscreen tunnel
+    // as soon as hero starts becoming non-opaque.
+    const fadeSyncHandoff = entryFrameFade < 0.999 ? 1 : 0;
+    const tunnelHandoff = _heroFrozen
+      ? 1
+      : Math.max(postEntryHandoff, fadeSyncHandoff);
+    const tunnelScale = lerp(TUNNEL_VIEW.idleScale, TUNNEL_VIEW.handoffScale, tunnelHandoff);
+    const tunnelShift = lerp(TUNNEL_VIEW.idleShift, TUNNEL_VIEW.handoffShift, tunnelHandoff);
+    const tunnelYOffset = lerp(TUNNEL_VIEW.idleYOffset, TUNNEL_VIEW.handoffYOffset, tunnelHandoff);
 
     setTunnelTransform(tunnel, tunnelScale, tunnelShift, 1, tunnelYOffset);
     setTunnelProgress(tunnelProgress);
@@ -412,7 +454,9 @@ const ScrollManager = (() => {
     centerPortalInViewport();
     computeBase(portal, logoStage);
 
-    if (hero.style.visibility !== 'hidden') {
+    if (mainScrollTrigger) {
+      applyTransitionAtProgress(mainScrollTrigger.progress);
+    } else if (hero.style.visibility !== 'hidden') {
       applyIdleState();
     } else {
       setTunnelTransform(tunnel, 1, 0, 1);
@@ -429,18 +473,19 @@ const ScrollManager = (() => {
   function initUnifiedScroll() {
     const { spacer } = els;
 
-    ScrollTrigger.create({
+    mainScrollTrigger = ScrollTrigger.create({
       trigger: spacer,
       start: 'top top',
       end: 'bottom bottom',
-      scrub: 0.8,
+      scrub: 0.18,
       onUpdate: ({ progress }) => {
-        applyUnifiedTransition(progress); // direct - scrub:true already fires once per frame
+        applyTransitionAtProgress(progress);
       },
       onEnterBack: (self) => {
-        applyUnifiedTransition(self.progress);
+        applyTransitionAtProgress(self.progress);
       },
       onLeaveBack: () => {
+        renderedProgress = -1;
         applyIdleState();
       }
     });
@@ -448,6 +493,7 @@ const ScrollManager = (() => {
 
   function init() {
     gsap.registerPlugin(ScrollTrigger);
+    ScrollTrigger.config({ limitCallbacks: false, ignoreMobileResize: true });
 
     els = {
       hero: document.getElementById('hero'),

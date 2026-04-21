@@ -2,6 +2,9 @@ const TunnelScene = (() => {
   let scene, camera, renderer;
   let time = 0;
   let endLogo = null;
+  let logoHovered = false;
+  let gifHoverOverlay = null;
+  let hoveredAnimatedCard = null;
 
   const raycaster = new THREE.Raycaster();
   const mouse = new THREE.Vector2();
@@ -9,12 +12,12 @@ const TunnelScene = (() => {
 
   const TUNNEL_LEN = 100;
   const TUNNEL_R = 5;
-  const ARCH_N = 28;
+  const ARCH_N = 22;
   const ARCH_GAP = TUNNEL_LEN / ARCH_N;
 
   const CAM_Z0 = 6.6;
   const CAM_Y = 1.92;
-  const MAX_TRAVEL = 49;
+  const MAX_TRAVEL = 52;
   const ENTRY_LOCK_PROGRESS = 0;
   const ENTRY_FOV = 66;
   const CRUISE_FOV = 53;
@@ -43,25 +46,32 @@ const TunnelScene = (() => {
   };
   const END_ZONE_Z = -58;
 
-  const END_LOGO_URL = 'assets/moodlogo copy.svg';
+  const END_LOGO_URL = 'assets/tunnel-welcome.svg';
   const END_LOGO_LINK = 'https://mood.mt/services/';
+  const FEATURE_GIF_SRC = 'assets/feature-card.gif';
 
   const projects = [
-    { title: 'Brand Identity',   z: CARD_START_Z + (CARD_GAP * -1), side: 'left',  accent: 0xffaa66, img: 'assets/coffeefellows.jpg' },
-    { title: 'Brand Identity',   z: CARD_START_Z + (CARD_GAP * -3), side: 'right', accent: 0xff5566, img: 'assets/coffeefellows.jpg' },
-    { title: 'Website Design',   z: CARD_START_Z + (CARD_GAP * -5), side: 'left',  accent: 0xffaa66, img: 'assets/coffeefellows.jpg' },
-    { title: 'Website Design',   z: CARD_START_Z + (CARD_GAP * -7), side: 'right', accent: 0xff5566, img: 'assets/coffeefellows.jpg' },
-    { title: 'Digital Strategy', z: CARD_START_Z + (CARD_GAP * -9), side: 'left',  accent: 0xffaa66, img: 'assets/coffeefellows.jpg' },
-    { title: 'Digital Strategy', z: CARD_START_Z + (CARD_GAP * -11), side: 'right', accent: 0xff5566, img: 'assets/coffeefellows.jpg' },
-    { title: 'Photography',      z: CARD_START_Z + (CARD_GAP * -14), side: 'left',  accent: 0xffaa66, img: 'assets/coffeefellows.jpg' },
-    { title: 'Photography',      z: CARD_START_Z + (CARD_GAP * -16), side: 'right', accent: 0xff5566, img: 'assets/coffeefellows.jpg' },
+    { title: '',                 z: CARD_START_Z + (CARD_GAP * -1), side: 'left',  accent: 0xffffff, img: FEATURE_GIF_SRC, hideTitle: true, fillImage: true, animateOnHover: true },
+    { title: 'Brand Identity',   z: CARD_START_Z + (CARD_GAP * -3), side: 'right', accent: 0xffffff, img: 'assets/coffeefellows.jpg' },
+    { title: 'Website Design',   z: CARD_START_Z + (CARD_GAP * -5), side: 'left',  accent: 0xffffff, img: 'assets/coffeefellows.jpg' },
+    { title: 'Website Design',   z: CARD_START_Z + (CARD_GAP * -7), side: 'right', accent: 0xffffff, img: 'assets/coffeefellows.jpg' },
+    { title: 'Digital Strategy', z: CARD_START_Z + (CARD_GAP * -9), side: 'left',  accent: 0xffffff, img: 'assets/coffeefellows.jpg' },
+    { title: 'Digital Strategy', z: CARD_START_Z + (CARD_GAP * -11), side: 'right', accent: 0xffffff, img: 'assets/coffeefellows.jpg' },
+    { title: 'Photography',      z: CARD_START_Z + (CARD_GAP * -14), side: 'left',  accent: 0xffffff, img: 'assets/coffeefellows.jpg' },
+    { title: 'Photography',      z: CARD_START_Z + (CARD_GAP * -16), side: 'right', accent: 0xffffff, img: 'assets/coffeefellows.jpg' },
   ];
 
   const cardMeshes = [];
   const panelToCard = new Map();
 
   let scrollProgress = 0;
+  let targetScrollProgress = 0;
   let currentProgress = 0;
+  let lastScrollProgress = 0;
+  let lastScrollInputTime = 0;
+  let lastFrameTime = performance.now();
+
+  const SCROLL_DAMPING = 18;
 
   let sharedShadowTexture = null;
   let sharedGlowTexture = null;
@@ -93,9 +103,12 @@ const TunnelScene = (() => {
     camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 200);
     camera.position.set(0, CAM_Y, CAM_Z0);
 
-    renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-    renderer.setSize(innerWidth, innerHeight);
-    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer = new THREE.WebGLRenderer({
+      canvas,
+      antialias: false,
+      powerPreference: 'high-performance',
+    });
+    applyRendererSizing();
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 0.94;
 
@@ -113,6 +126,7 @@ const TunnelScene = (() => {
 
     renderer.domElement.addEventListener('click', onLogoClick);
     renderer.domElement.addEventListener('mousemove', onHover);
+    renderer.domElement.addEventListener('mouseleave', onCanvasLeave);
     window.addEventListener('resize', onResize);
 
     animate();
@@ -279,7 +293,7 @@ const TunnelScene = (() => {
   }
 
   function makeArch(z) {
-    const geo = new THREE.TorusGeometry(TUNNEL_R, 0.07, 16, 120);
+    const geo = new THREE.TorusGeometry(TUNNEL_R, 0.07, 12, 80);
     const mat = new THREE.MeshBasicMaterial({
       color: 0xffffff,
       transparent: false,
@@ -356,9 +370,10 @@ const TunnelScene = (() => {
     ctx.closePath();
   }
 
-  function makeCardTexture(title, imgSrc, accent, side) {
-    const width = 512;
-    const height = 512;
+  function makeCardTexture(project) {
+    const { title, img: imgSrc, accent, side, hideTitle, fillImage, animateOnHover } = project;
+    const width = 384;
+    const height = 384;
     const pad = 8;
     const radius = 22;
     const bx = pad;
@@ -371,6 +386,7 @@ const TunnelScene = (() => {
     canvas.height = height;
     const ctx = canvas.getContext('2d');
     const texture = new THREE.CanvasTexture(canvas);
+    let baseImage = null;
 
     const accentR = (accent >> 16) & 0xff;
     const accentG = (accent >> 8) & 0xff;
@@ -383,28 +399,35 @@ const TunnelScene = (() => {
       canvasRoundedRect(ctx, bx, by, bw, bh, radius);
       ctx.clip();
 
-      ctx.fillStyle = 'rgba(238, 234, 228, 0.65)';
-      ctx.fillRect(bx, by, bw, bh);
+      if (!fillImage) {
+        ctx.fillStyle = 'rgba(238, 234, 228, 0.65)';
+        ctx.fillRect(bx, by, bw, bh);
+      }
 
       if (image) {
-        const imgPad = 24;
-        const imgHeight = bh - 90;
-        const scale = Math.min((bw - imgPad * 2) / image.width, imgHeight / image.height) * 0.88;
+        const imgPad = fillImage ? 0 : 24;
+        const imgHeight = fillImage ? bh : (bh - 90);
+        const scaleBase = fillImage
+          ? Math.max((bw - imgPad * 2) / image.width, imgHeight / image.height)
+          : Math.min((bw - imgPad * 2) / image.width, imgHeight / image.height) * 0.88;
+        const scale = scaleBase;
         const drawW = image.width * scale;
         const drawH = image.height * scale;
         const drawX = bx + (bw - drawW) / 2;
-        const drawY = by + imgPad + (imgHeight - drawH) / 2;
+        const drawY = fillImage ? by + (bh - drawH) / 2 : by + imgPad + (imgHeight - drawH) / 2;
 
-        ctx.globalAlpha = 0.82;
+        ctx.globalAlpha = fillImage ? 1 : 0.82;
         ctx.drawImage(image, drawX, drawY, drawW, drawH);
         ctx.globalAlpha = 1;
 
-        const haze = ctx.createLinearGradient(bx, by, bx, by + bh);
-        haze.addColorStop(0, 'rgba(242, 238, 232, 0.10)');
-        haze.addColorStop(0.5, 'rgba(242, 238, 232, 0.02)');
-        haze.addColorStop(1, 'rgba(242, 238, 232, 0.15)');
-        ctx.fillStyle = haze;
-        ctx.fillRect(bx, by, bw, bh);
+        if (!fillImage) {
+          const haze = ctx.createLinearGradient(bx, by, bx, by + bh);
+          haze.addColorStop(0, 'rgba(242, 238, 232, 0.10)');
+          haze.addColorStop(0.5, 'rgba(242, 238, 232, 0.02)');
+          haze.addColorStop(1, 'rgba(242, 238, 232, 0.15)');
+          ctx.fillStyle = haze;
+          ctx.fillRect(bx, by, bw, bh);
+        }
       }
 
       const edgeHaze = ctx.createRadialGradient(width / 2, height / 2, bw * 0.22, width / 2, height / 2, bw * 0.55);
@@ -413,38 +436,45 @@ const TunnelScene = (() => {
       ctx.fillStyle = edgeHaze;
       ctx.fillRect(bx, by, bw, bh);
 
-      const edgeWidth = 80;
+      const edgeWidth = 124;
       const edgeGradient = side === 'right'
         ? ctx.createLinearGradient(bx + bw - edgeWidth, 0, bx + bw, 0)
         : ctx.createLinearGradient(bx, 0, bx + edgeWidth, 0);
 
       if (side === 'right') {
         edgeGradient.addColorStop(0, 'rgba(0,0,0,0)');
-        edgeGradient.addColorStop(1, `rgba(${accentR},${accentG},${accentB},0.45)`);
+        edgeGradient.addColorStop(1, `rgba(${accentR},${accentG},${accentB},0.85)`);
         ctx.fillStyle = edgeGradient;
         ctx.fillRect(bx + bw - edgeWidth, by, edgeWidth, bh);
+        ctx.fillStyle = `rgba(${accentR},${accentG},${accentB},0.92)`;
+        ctx.fillRect(bx + bw - 3, by + radius, 3, bh - radius * 2);
       } else {
-        edgeGradient.addColorStop(0, `rgba(${accentR},${accentG},${accentB},0.45)`);
+        edgeGradient.addColorStop(0, `rgba(${accentR},${accentG},${accentB},0.85)`);
         edgeGradient.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = edgeGradient;
         ctx.fillRect(bx, by, edgeWidth, bh);
+        ctx.fillStyle = `rgba(${accentR},${accentG},${accentB},0.92)`;
+        ctx.fillRect(bx, by + radius, 3, bh - radius * 2);
       }
 
       ctx.restore();
 
       drawGlassBorder(ctx, bx, by, bw, bh, radius);
       drawAccentEdge(ctx, bx, by, bw, bh, radius, side, accentR, accentG, accentB);
-      drawTextGradient(ctx, bx, by, bw, bh, radius);
 
-      ctx.shadowColor = 'rgba(34, 20, 10, 0.45)';
-      ctx.shadowBlur = 16;
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = 'rgba(48, 28, 16, 0.32)';
-      ctx.font = '600 30px sans-serif';
-      ctx.strokeText(title, bx + 18, by + bh - 24);
-      ctx.fillStyle = 'rgba(255,252,248,1)';
-      ctx.fillText(title, bx + 18, by + bh - 24);
-      ctx.shadowBlur = 0;
+      if (!hideTitle) {
+        drawTextGradient(ctx, bx, by, bw, bh, radius);
+
+        ctx.shadowColor = 'rgba(34, 20, 10, 0.45)';
+        ctx.shadowBlur = 16;
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = 'rgba(48, 28, 16, 0.32)';
+        ctx.font = '600 30px sans-serif';
+        ctx.strokeText(title, bx + 18, by + bh - 24);
+        ctx.fillStyle = 'rgba(255,252,248,1)';
+        ctx.fillText(title, bx + 18, by + bh - 24);
+        ctx.shadowBlur = 0;
+      }
 
       texture.needsUpdate = true;
     }
@@ -453,12 +483,18 @@ const TunnelScene = (() => {
 
     if (imgSrc) {
       const image = new Image();
-      image.crossOrigin = 'anonymous';
-      image.onload = () => draw(image);
+      image.onload = () => {
+        baseImage = image;
+        draw(image);
+      };
       image.src = imgSrc;
     }
 
-    return texture;
+    function setAnimated(enabled) {
+      if (!animateOnHover) return;
+    }
+
+    return { texture, setAnimated };
   }
 
   function drawGlassBorder(ctx, bx, by, bw, bh, radius) {
@@ -478,10 +514,10 @@ const TunnelScene = (() => {
 
   function drawAccentEdge(ctx, bx, by, bw, bh, radius, side, r, g, b) {
     ctx.save();
-    ctx.shadowColor = `rgba(${r},${g},${b},0.80)`;
-    ctx.shadowBlur = 50;
-    ctx.strokeStyle = `rgba(${r},${g},${b},0.35)`;
-    ctx.lineWidth = 1;
+    ctx.shadowColor = `rgba(${r},${g},${b},0.95)`;
+    ctx.shadowBlur = 64;
+    ctx.strokeStyle = `rgba(${r},${g},${b},0.95)`;
+    ctx.lineWidth = 2.4;
 
     ctx.beginPath();
     if (side === 'right') {
@@ -513,10 +549,11 @@ const TunnelScene = (() => {
     const group = new THREE.Group();
     const pivot = new THREE.Group();
 
+    const textureController = makeCardTexture(project);
     const panel = new THREE.Mesh(
       new THREE.PlaneGeometry(CARD.w, CARD.h),
       new THREE.MeshBasicMaterial({
-        map: makeCardTexture(project.title, project.img, project.accent, project.side),
+        map: textureController.texture,
         transparent: true,
         side: THREE.DoubleSide,
         depthWrite: false,
@@ -542,6 +579,7 @@ const TunnelScene = (() => {
       doorPivot: pivot,
       panel,
       proj: project,
+      textureController,
       doorTarget: 0,
       doorCurrent: 0,
     };
@@ -617,7 +655,7 @@ const TunnelScene = (() => {
 
   function addEndLogo() {
     loader.load(END_LOGO_URL, (tex) => {
-      const height = 1.8;
+      const height = 2.1;
       const width = height * 3;
 
       endLogo = new THREE.Mesh(
@@ -636,6 +674,7 @@ const TunnelScene = (() => {
       endLogo.position.set(0, 1.12, END_ZONE_Z);
       endLogo.visible = true;
       scene.add(endLogo);
+
     });
   }
 
@@ -657,20 +696,203 @@ const TunnelScene = (() => {
   }
 
   function onHover(event) {
+    if (isScrollActive()) {
+      cardMeshes.forEach((card) => {
+        card.doorTarget = 0;
+        card.textureController?.setAnimated(false);
+      });
+      hideGifHoverOverlay();
+      logoHovered = false;
+      renderer.domElement.style.cursor = 'default';
+      return;
+    }
+
     const hits = getIntersections(event);
     const logoHit = endLogo ? hits.logo.length > 0 : false;
     const cardHit = hits.cards[0]?.object || null;
+    const hoveredCard = (cardHit && panelToCard.has(cardHit))
+      ? panelToCard.get(cardHit)
+      : null;
 
     cardMeshes.forEach((card) => {
-      card.doorTarget = 0;
+      const isHoveredCard = card === hoveredCard;
+      card.doorTarget = isHoveredCard ? (card.proj.side === 'left' ? 0.5 : -0.5) : 0;
+      card.textureController?.setAnimated(isHoveredCard);
     });
 
-    if (cardHit && panelToCard.has(cardHit)) {
-      const card = panelToCard.get(cardHit);
-      card.doorTarget = card.proj.side === 'left' ? 0.5 : -0.5;
+    hoveredAnimatedCard = hoveredCard && hoveredCard.proj.animateOnHover && hoveredCard.proj.img === FEATURE_GIF_SRC
+      ? hoveredCard
+      : null;
+    if (hoveredAnimatedCard) {
+      ensureGifHoverOverlay();
+      gifHoverOverlay.style.display = 'block';
+      updateGifHoverOverlayPosition();
+    } else {
+      hideGifHoverOverlay();
     }
 
+    logoHovered = logoHit;
     renderer.domElement.style.cursor = (logoHit || cardHit) ? 'pointer' : 'default';
+  }
+
+  function onCanvasLeave() {
+    hideGifHoverOverlay();
+  }
+
+  function ensureGifHoverOverlay() {
+    if (gifHoverOverlay) return;
+    const wrapper = document.createElement('div');
+    wrapper.style.position = 'fixed';
+    wrapper.style.left = '0';
+    wrapper.style.top = '0';
+    wrapper.style.width = '0';
+    wrapper.style.height = '0';
+    wrapper.style.display = 'none';
+    wrapper.style.pointerEvents = 'none';
+    wrapper.style.overflow = 'hidden';
+    wrapper.style.borderRadius = '0';
+    wrapper.style.zIndex = '10';
+    wrapper.style.transformOrigin = '0 0';
+
+    const img = document.createElement('img');
+    img.src = FEATURE_GIF_SRC;
+    img.alt = '';
+    img.style.width = '100%';
+    img.style.height = '100%';
+    img.style.display = 'block';
+    img.style.objectFit = 'cover';
+
+    const frost = document.createElement('div');
+    frost.style.position = 'absolute';
+    frost.style.inset = '0';
+    frost.style.pointerEvents = 'none';
+    frost.style.borderRadius = 'inherit';
+    frost.style.background = [
+      'radial-gradient(138% 118% at 50% 50%, rgba(255,255,255,0) 58%, rgba(245,241,235,0.22) 100%)',
+      'linear-gradient(180deg, rgba(246,242,236,0.18) 0%, rgba(242,238,232,0.07) 50%, rgba(240,235,228,0.18) 100%)'
+    ].join(',');
+
+    const border = document.createElement('div');
+    border.style.position = 'absolute';
+    border.style.inset = '0';
+    border.style.pointerEvents = 'none';
+    border.style.borderRadius = 'inherit';
+    border.style.boxShadow = 'inset 0 0 0 1.5px rgba(255,255,255,0.38), inset 0 0 12px rgba(255,255,255,0.16)';
+
+    const accent = document.createElement('div');
+    accent.style.position = 'absolute';
+    accent.style.inset = '0';
+    accent.style.pointerEvents = 'none';
+    accent.style.borderRadius = 'inherit';
+    accent.style.background = 'linear-gradient(90deg, rgba(255,255,255,0.72) 0%, rgba(255,255,255,0.42) 4%, rgba(255,255,255,0.16) 10%, rgba(255,255,255,0) 22%)';
+
+    const highlight = document.createElement('div');
+    highlight.style.position = 'absolute';
+    highlight.style.inset = '0';
+    highlight.style.pointerEvents = 'none';
+    highlight.style.borderRadius = 'inherit';
+    highlight.style.boxShadow = 'inset 0 2px 0 rgba(255,255,255,0.34), inset 0 -10px 20px rgba(248,243,236,0.08), inset 0 0 18px rgba(255,255,255,0.1)';
+
+    wrapper.appendChild(img);
+    wrapper.appendChild(frost);
+    wrapper.appendChild(border);
+    wrapper.appendChild(accent);
+    wrapper.appendChild(highlight);
+    document.body.appendChild(wrapper);
+    gifHoverOverlay = wrapper;
+  }
+
+  function hideGifHoverOverlay() {
+    hoveredAnimatedCard = null;
+    if (!gifHoverOverlay) return;
+    gifHoverOverlay.style.display = 'none';
+  }
+
+  function updateGifHoverOverlayPosition() {
+    if (!gifHoverOverlay || !hoveredAnimatedCard || !renderer || !camera) return;
+
+    const panel = hoveredAnimatedCard.panel;
+    panel.updateWorldMatrix(true, false);
+    const rect = renderer.domElement.getBoundingClientRect();
+
+    // Match the same inner content area used by makeCardTexture():
+    // canvas 384x384 with pad=8 (inner rect 8..376).
+    const texSize = 384;
+    const pad = 8;
+    const radius = 22;
+    const innerLeft = (pad / texSize) * CARD.w - CARD.w * 0.5;
+    const innerRight = ((texSize - pad) / texSize) * CARD.w - CARD.w * 0.5;
+    const innerTop = CARD.h * 0.5 - (pad / texSize) * CARD.h;
+    const innerBottom = CARD.h * 0.5 - ((texSize - pad) / texSize) * CARD.h;
+
+    const localCorners = [
+      new THREE.Vector3(innerLeft, innerTop, 0),
+      new THREE.Vector3(innerRight, innerTop, 0),
+      new THREE.Vector3(innerRight, innerBottom, 0),
+      new THREE.Vector3(innerLeft, innerBottom, 0),
+    ];
+
+    const projected = localCorners.map((corner) => {
+      corner.applyMatrix4(panel.matrixWorld);
+      corner.project(camera);
+      return {
+        x: (corner.x * 0.5 + 0.5) * rect.width + rect.left,
+        y: (-corner.y * 0.5 + 0.5) * rect.height + rect.top,
+      };
+    });
+
+    const dx1 = projected[1].x - projected[2].x;
+    const dx2 = projected[3].x - projected[2].x;
+    const dx3 = projected[0].x - projected[1].x + projected[2].x - projected[3].x;
+    const dy1 = projected[1].y - projected[2].y;
+    const dy2 = projected[3].y - projected[2].y;
+    const dy3 = projected[0].y - projected[1].y + projected[2].y - projected[3].y;
+
+    let a;
+    let b;
+    let c;
+    let d;
+    let e;
+    let f;
+    let g;
+    let h;
+    if (dx3 === 0 && dy3 === 0) {
+      a = projected[1].x - projected[0].x;
+      b = projected[3].x - projected[0].x;
+      c = projected[0].x;
+      d = projected[1].y - projected[0].y;
+      e = projected[3].y - projected[0].y;
+      f = projected[0].y;
+      g = 0;
+      h = 0;
+    } else {
+      const det = dx1 * dy2 - dx2 * dy1;
+      g = (dx3 * dy2 - dx2 * dy3) / det;
+      h = (dx1 * dy3 - dx3 * dy1) / det;
+      a = projected[1].x - projected[0].x + g * projected[1].x;
+      b = projected[3].x - projected[0].x + h * projected[3].x;
+      c = projected[0].x;
+      d = projected[1].y - projected[0].y + g * projected[1].y;
+      e = projected[3].y - projected[0].y + h * projected[3].y;
+      f = projected[0].y;
+    }
+
+    const sourceW = texSize - pad * 2;
+    const sourceH = texSize - pad * 2;
+    const A = a / sourceW;
+    const B = b / sourceH;
+    const D = d / sourceW;
+    const E = e / sourceH;
+    const G = g / sourceW;
+    const H = h / sourceH;
+    const matrix = `matrix3d(${A},${D},0,${G},${B},${E},0,${H},0,0,1,0,${c},${f},0,1)`;
+
+    gifHoverOverlay.style.left = '0px';
+    gifHoverOverlay.style.top = '0px';
+    gifHoverOverlay.style.width = `${sourceW}px`;
+    gifHoverOverlay.style.height = `${sourceH}px`;
+    gifHoverOverlay.style.borderRadius = `${radius}px`;
+    gifHoverOverlay.style.transform = matrix;
   }
 
   function getIntersections(event) {
@@ -690,14 +912,36 @@ const TunnelScene = (() => {
   }
 
   function setScrollProgress(progress) {
+    targetScrollProgress = progress;
     scrollProgress = progress;
+    if (Math.abs(progress - lastScrollProgress) > 0.0001) {
+      lastScrollInputTime = performance.now();
+      lastScrollProgress = progress;
+    }
+  }
+
+  function isScrollActive() {
+    return (performance.now() - lastScrollInputTime) < 140;
   }
 
   function animate() {
     requestAnimationFrame(animate);
 
+    const now = performance.now();
+    const dt = Math.min(0.05, (now - lastFrameTime) / 1000);
+    lastFrameTime = now;
+
     time += 0.004;
-    currentProgress = scrollProgress; // keep 3D exactly in sync with scroll progress
+    if (isScrollActive()) {
+      // Follow scroll input directly to avoid perceived lag while user is actively scrolling.
+      currentProgress = targetScrollProgress;
+    } else {
+      const smoothBlend = 1 - Math.exp(-SCROLL_DAMPING * dt);
+      currentProgress = lerp(currentProgress, targetScrollProgress, smoothBlend);
+      if (Math.abs(currentProgress - targetScrollProgress) < 0.0002) {
+        currentProgress = targetScrollProgress;
+      }
+    }
     const entryProgress = rangeProgress(currentProgress, CAMERA_TRAVEL.entryStart, CAMERA_TRAVEL.entryEnd);
     const travelProgress = entryProgress; // remove extra easing layer from camera travel
     const cameraZ = CAM_Z0 - travelProgress * MAX_TRAVEL;
@@ -707,7 +951,7 @@ const TunnelScene = (() => {
     const fovBlend = clamp01((currentProgress - ENTRY_LOCK_PROGRESS) / (1 - ENTRY_LOCK_PROGRESS));
     const fov = lerp(ENTRY_FOV, CRUISE_FOV, fovBlend);
 
-    if (Math.abs(camera.fov - fov) > 0.01) {
+    if (Math.abs(camera.fov - fov) > 0.08) {
       camera.fov = fov;
       camera.updateProjectionMatrix();
     }
@@ -719,6 +963,7 @@ const TunnelScene = (() => {
     );
     camera.lookAt(0, lookY, cameraZ - lookAhead);
 
+    const scrollActive = isScrollActive();
     cardMeshes.forEach((card, i) => {
       card.group.position.y = CARD.y + Math.sin(time + i * 0.7) * 0.02;
       card.doorCurrent = lerp(card.doorCurrent, card.doorTarget, 0.08);
@@ -728,10 +973,16 @@ const TunnelScene = (() => {
     if (endLogo) {
       endLogo.visible = true;
       endLogo.material.opacity = 1;
-      endLogo.position.y = 1.12 + Math.sin(time * 2.8) * 0.06;
-      const pulse = (Math.sin(time * 2.6) + 1) * 0.5;
+      endLogo.position.y = scrollActive ? 1.12 : 1.12 + Math.sin(time * 2.8) * 0.06;
+      const pulse = scrollActive ? 0.5 : (Math.sin(time * 2.6) + 1) * 0.5;
       const breathe = lerp(0.92, 1.16, pulse);
       endLogo.scale.set(breathe, breathe, 1);
+    }
+
+    if (scrollActive) {
+      hideGifHoverOverlay();
+    } else if (hoveredAnimatedCard && gifHoverOverlay && gifHoverOverlay.style.display !== 'none') {
+      updateGifHoverOverlayPosition();
     }
 
     renderer.render(scene, camera);
@@ -741,7 +992,14 @@ const TunnelScene = (() => {
     if (!camera || !renderer) return;
     camera.aspect = innerWidth / innerHeight;
     camera.updateProjectionMatrix();
+    applyRendererSizing();
+  }
+
+  function applyRendererSizing() {
+    if (!renderer) return;
     renderer.setSize(innerWidth, innerHeight);
+    const dprCap = innerWidth <= 768 ? 1.15 : 1.35;
+    renderer.setPixelRatio(Math.min(devicePixelRatio, dprCap));
   }
 
   return {
